@@ -15,11 +15,17 @@ MODEL=${MODEL:-nvidia/Qwen3.6-27B-NVFP4}
 cd "${VLLM_SERVE_DIR:-$HOME/co/vllm_serve}"
 export MAX_JOBS=${MAX_JOBS:-4}
 export FLASHINFER_NVCC_THREADS=${FLASHINFER_NVCC_THREADS:-1}
+# The default CUDA-graph setup (capture sizes up to 512) ran out of GPU memory
+# on the 32 GB card during profiling, so concurrency and capture sizes are capped.
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 exec systemd-run --user --scope --quiet \
   -p MemoryMax="${MEMORY_MAX:-40G}" -p MemorySwapMax=0 \
   uv run --no-sync vllm serve "$MODEL" \
   --served-model-name Qwen3.6-27B-NVFP4 \
   --max-model-len 4096 \
-  --gpu-memory-utilization 0.90 \
+  --gpu-memory-utilization "${GPU_MEMORY_UTILIZATION:-0.88}" \
+  --max-num-seqs "${MAX_NUM_SEQS:-64}" \
+  --max-num-batched-tokens 4096 \
+  --compilation-config '{"max_cudagraph_capture_size": 64}' \
   --limit-mm-per-prompt '{"image": 0, "video": 0}' \
   --port "${PORT:-8000}"

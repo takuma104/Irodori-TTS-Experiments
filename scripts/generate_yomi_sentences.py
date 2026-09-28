@@ -144,6 +144,11 @@ async def generate_for(
         position = find_stem(sentence, stem)
         if position is None or not 8 <= len(sentence) <= 80:
             continue
+        # A dictionary form without okurigana (羽振, はぶり) written with it in the
+        # sentence (羽振り) would duplicate the kana after substitution (はぶりり).
+        after = sentence[position + len(stem) : position + len(stem) + 1]
+        if after and after == to_hiragana(stem_reading[-1]):
+            continue
         verified = None
         if homograph_readings:
             choices = [target["reading"]] + homograph_readings
