@@ -25,6 +25,7 @@ import argparse
 import json
 import math
 import random
+import re
 import sys
 import time
 from collections import defaultdict
@@ -39,6 +40,8 @@ from irodori_tts.inference_runtime import InferenceRuntime, SamplingRequest
 from irodori_tts.rf import sample_stratified_logit_normal_t
 from irodori_tts.text_normalization import normalize_text
 from student_text import StudentTextEncoder
+
+KANJI = re.compile(r"[㐀-鿿々]")
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -55,6 +58,9 @@ class Sample:
     role: str
     bucket: str
     latent_path: Path
+    # Kanji run around the target (e.g. 従容) whose tokens may change freely;
+    # set only for rows taught by the kana teacher.
+    free_run: str | None = None
 
 
 def misread_keys(results_dirs: list[Path]) -> set[str]:
@@ -67,8 +73,30 @@ def misread_keys(results_dirs: list[Path]) -> set[str]:
     return keys
 
 
+def target_runs(rows_files: list[Path]) -> dict[str, str]:
+    """Key -> kanji run containing the tagged target (JKYB-format rows)."""
+    runs: dict[str, str] = {}
+    for path in rows_files:
+        for row in read_jsonl(path):
+            tagged = row.get("tagged_text")
+            if not tagged:
+                continue
+            start = tagged.index("<")
+            end = tagged.index(">") - 1
+            text = tagged.replace("<", "").replace(">", "")
+            while start > 0 and KANJI.match(text[start - 1]):
+                start -= 1
+            while end < len(text) and KANJI.match(text[end]):
+                end += 1
+            runs[row["key"]] = text[start:end]
+    return runs
+
+
 def load_samples(
-    teacher_dirs: list[Path], split: str, exclude: set[str] | None = None
+    teacher_dirs: list[Path],
+    split: str,
+    exclude: set[str] | None = None,
+    runs: dict[str, str] | None = None,
 ) -> list[Sample]:
     samples: list[Sample] = []
     for teacher_dir in teacher_dirs:
@@ -88,6 +116,9 @@ def load_samples(
                     latent_path=Path(row["latent_path"])
                     if "latent_path" in row
                     else teacher_dir / "latents" / f"{row['key']}.pt",
+                    free_run=(runs or {}).get(row["key"])
+                    if row.get("role") == "target"
+                    else None,
                 )
             )
     return samples
@@ -133,6 +164,10 @@ class Distiller:
         speaker_dropout: float,
         duration_weight: float,
         keep_weight: float,
+        ctx_weight: float = 0.0,
+        repr_weight: float = 0.0,
+        general_texts: list[str] | None = None,
+        general_batch_size: int = 64,
     ) -> None:
         self.runtime = runtime
         self.model = runtime.model
@@ -142,6 +177,11 @@ class Distiller:
         self.speaker_dropout = speaker_dropout
         self.duration_weight = duration_weight
         self.keep_weight = keep_weight
+        self.ctx_weight = ctx_weight
+        self.repr_weight = repr_weight
+        self.general_texts = general_texts or []
+        self.general_batch_size = general_batch_size
+        self.rng = random.Random(0)
         self.text_max_len = int(runtime.default_text_max_len)
 
     def _tokens(self, texts: list[str]) -> tuple[torch.Tensor, torch.Tensor]:
@@ -149,6 +189,54 @@ class Distiller:
             texts, max_length=self.text_max_len
         )
         return ids.to(self.device), mask.to(self.device)
+
+    def _free_mask(
+        self, texts: list[str], runs: list[str | None], length: int
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """(free, has_ctx): tokens overlapping the free run, and rows usable for L_ctx."""
+        free = torch.zeros((len(texts), length), dtype=torch.bool)
+        has_ctx = torch.ones(len(texts), dtype=torch.bool)
+        offset = 1 if self.runtime.tokenizer.add_bos else 0
+        for i, (text, run) in enumerate(zip(texts, runs, strict=True)):
+            if run is None:
+                continue
+            start = text.find(run)
+            if start < 0:
+                has_ctx[i] = False
+                continue
+            end = start + len(run)
+            offsets = self.runtime.tokenizer.tokenizer(
+                text, add_special_tokens=False, return_offsets_mapping=True
+            )["offset_mapping"]
+            for j, (a, b) in enumerate(offsets):
+                if a < end and b > start and j + offset < length:
+                    free[i, j + offset] = True
+        return free.to(self.device), has_ctx.to(self.device)
+
+    def _original_state(self, ids: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        with torch.no_grad():
+            model = self.model
+            return model.text_norm(
+                model.text_encoder(model.pretrained_text_backbone, ids, mask)
+            ).float()
+
+    @staticmethod
+    def _state_mse(
+        a: torch.Tensor, b: torch.Tensor, mask: torch.Tensor
+    ) -> torch.Tensor:
+        per_token = ((a - b) ** 2).mean(dim=-1)
+        m = mask.float()
+        return (per_token * m).sum() / m.sum().clamp_min(1.0)
+
+    def _general_loss(self) -> torch.Tensor:
+        texts = [
+            normalize_text(t).strip()
+            for t in self.rng.sample(self.general_texts, self.general_batch_size)
+        ]
+        ids, mask = self._tokens(texts)
+        original = self._original_state(ids, mask)
+        student = self.student.encode(self.model.pretrained_text_backbone, ids, mask)
+        return self._state_mse(student.float(), original, mask)
 
     def _duration(
         self,
@@ -262,9 +350,10 @@ class Distiller:
                 has_speaker,
             ).float()
         student_ids, student_mask = self._tokens(student_texts)
-        student_state = self.student.encode(
+        student_fp32 = self.student.encode(
             model.pretrained_text_backbone, student_ids, student_mask
-        ).to(dit_dtype)
+        )
+        student_state = student_fp32.to(dit_dtype)
         v_student = model.forward_with_encoded_conditions(
             x_t=x_t,
             t=t,
@@ -301,6 +390,18 @@ class Distiller:
         )
         per_sample = per_sample_v + self.duration_weight * per_sample_dur
         loss = (weight * per_sample).sum() / weight.sum()
+        ctx_loss = gen_loss = None
+        if self.ctx_weight > 0:
+            free, has_ctx = self._free_mask(
+                student_texts, [s.free_run for s in batch], student_ids.shape[1]
+            )
+            original = self._original_state(student_ids, student_mask)
+            ctx_mask = student_mask & ~free & has_ctx[:, None]
+            ctx_loss = self._state_mse(student_fp32, original, ctx_mask)
+            loss = loss + self.ctx_weight * ctx_loss
+        if self.repr_weight > 0 and self.general_texts:
+            gen_loss = self._general_loss()
+            loss = loss + self.repr_weight * gen_loss
         is_target = torch.tensor(
             [s.role == "target" for s in batch], device=self.device
         )
@@ -316,6 +417,10 @@ class Distiller:
             else math.nan,
             "dur": float(per_sample_dur.mean()),
         }
+        if ctx_loss is not None:
+            metrics["ctx"] = float(ctx_loss.detach())
+        if gen_loss is not None:
+            metrics["gen"] = float(gen_loss.detach())
         return loss, metrics
 
 
@@ -371,6 +476,27 @@ def main() -> int:
     parser.add_argument("--duration-weight", type=float, default=1.0)
     parser.add_argument("--keep-weight", type=float, default=1.0)
     parser.add_argument(
+        "--rows",
+        type=Path,
+        action="append",
+        default=[],
+        help="JKYB-format rows (tagged_text) that locate each target word for --ctx-weight.",
+    )
+    parser.add_argument(
+        "--ctx-weight",
+        type=float,
+        default=0.0,
+        help="Keep text states of tokens outside the target word at the original encoder's.",
+    )
+    parser.add_argument(
+        "--general-text",
+        type=Path,
+        default=None,
+        help="JSONL of general sentences for --repr-weight (text only, no audio).",
+    )
+    parser.add_argument("--repr-weight", type=float, default=0.0)
+    parser.add_argument("--general-batch-size", type=int, default=64)
+    parser.add_argument(
         "--target-repeat",
         type=int,
         default=1,
@@ -396,13 +522,20 @@ def main() -> int:
         speaker_dropout=args.speaker_dropout,
         duration_weight=args.duration_weight,
         keep_weight=args.keep_weight,
+        ctx_weight=args.ctx_weight,
+        repr_weight=args.repr_weight,
+        general_texts=[r["text"] for r in read_jsonl(args.general_text)]
+        if args.general_text is not None
+        else None,
+        general_batch_size=args.general_batch_size,
     )
 
     exclude = misread_keys(args.teacher_results)
-    train = load_samples(args.teacher_dir, "train", exclude)
+    runs = target_runs(args.rows)
+    train = load_samples(args.teacher_dir, "train", exclude, runs)
     # Oversample the rows that carry the kana teacher.
     train += [s for s in train if s.role == "target"] * (args.target_repeat - 1)
-    dev = load_samples(args.teacher_dir, "dev", exclude)
+    dev = load_samples(args.teacher_dir, "dev", exclude, runs)
     print(f"excluded {len(exclude)} rows whose teacher audio was misread", flush=True)
     print(f"train={len(train)} dev={len(dev)} scope={args.scope}", flush=True)
     backbone_params = [
