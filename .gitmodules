@@ -1,0 +1,6 @@
+[submodule "Irodori-TTS"]
+	path = Irodori-TTS
+	url = https://github.com/Aratako/Irodori-TTS
+[submodule "Joyo-Kanji-Yomi-Benchmark-Parakeet-Edition"]
+	path = Joyo-Kanji-Yomi-Benchmark-Parakeet-Edition
+	url = https://github.com/Parakeet-Inc/Joyo-Kanji-Yomi-Benchmark-Parakeet-Edition
