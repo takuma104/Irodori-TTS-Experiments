@@ -2,15 +2,21 @@
 """Use the kana teacher only where the base model misreads (plan §4.3, §5.1).
 
     uv run python scripts/mix_teacher_by_difficulty.py \
-        --teacher outputs/yomi_pilot/teacher --base outputs/yomi_pilot/base_kanji \
+        --base outputs/yomi_pilot/base_kanji --teacher outputs/yomi_pilot/teacher \
         --output outputs/yomi_pilot/teacher_hard
 
-Target rows that the unchanged model already reads correctly from the kanji text
-(per ``jkyb-eval`` on ``--base``) take the base latent and the kanji text as
-their teacher, so they only ask the student to keep its output. The kana
-teacher, whose substitution also shifts the prosody of the whole sentence, is
-kept for rows the base misreads. Both directories were generated with the same
-per-key speaker and seed. Contrast rows are copied as they are.
+``--base`` holds the unchanged model's latents for the kanji text, scored by
+``jkyb-eval`` (``results/``). ``--teacher`` holds kana-substituted latents for
+(at least) the target rows the base misreads. Both were generated with the same
+per-key speaker and seed.
+
+- Target rows the base misreads and the teacher has: kana teacher (role
+  ``target``).
+- Target rows the base reads correctly: base latent and kanji text as the
+  teacher (role ``keep_target``), so they only ask the student to keep its
+  output. The kana substitution also shifts the prosody of the whole sentence,
+  so it is used only where the reading must change.
+- Other rows (contrast): whichever directory has them, kanji teacher.
 
 Writes ``manifest.jsonl`` with explicit ``latent_path`` fields.
 """
@@ -31,8 +37,8 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--teacher", type=Path, required=True)
     parser.add_argument("--base", type=Path, required=True)
+    parser.add_argument("--teacher", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
@@ -41,23 +47,32 @@ def main() -> int:
         for r in read_jsonl(args.base / "results" / "details" / "all.jsonl")
     }
     base_rows = {r["key"]: r for r in read_jsonl(args.base / "manifest.jsonl")}
+    teacher_rows = {r["key"]: r for r in read_jsonl(args.teacher / "manifest.jsonl")}
     counts: Counter[str] = Counter()
     args.output.mkdir(parents=True, exist_ok=True)
     with (args.output / "manifest.jsonl").open("w", encoding="utf-8") as handle:
-        for row in read_jsonl(args.teacher / "manifest.jsonl"):
-            key = row["key"]
-            out = dict(row)
-            if row.get("role") == "target" and base_correct.get(key):
-                base = base_rows[key]
-                out["text"] = base["text"]
-                out["role"] = "keep_target"
-                out["latent_path"] = str(args.base / "latents" / f"{key}.pt")
-                counts["easy (kanji teacher)"] += 1
-            else:
+        for key in sorted(base_rows.keys() | teacher_rows.keys()):
+            row = teacher_rows.get(key) or base_rows[key]
+            is_target = row.get("role") == "target"
+            if is_target and not base_correct.get(key, True) and key in teacher_rows:
+                out = dict(teacher_rows[key])
                 out["latent_path"] = str(args.teacher / "latents" / f"{key}.pt")
-                counts[
-                    "hard (kana teacher)" if row.get("role") == "target" else "contrast"
-                ] += 1
+                counts["hard (kana teacher)"] += 1
+            elif key in base_rows:
+                out = dict(base_rows[key])
+                out["text"] = out["kanji_text"]
+                if is_target:
+                    out["role"] = "keep_target"
+                out["latent_path"] = str(args.base / "latents" / f"{key}.pt")
+                counts["easy (kanji teacher)" if is_target else "contrast"] += 1
+            else:
+                # Contrast rows generated only in the teacher directory (kanji text).
+                if is_target:
+                    counts["skipped (no base latent)"] += 1
+                    continue
+                out = dict(row)
+                out["latent_path"] = str(args.teacher / "latents" / f"{key}.pt")
+                counts["contrast"] += 1
             handle.write(json.dumps(out, ensure_ascii=False) + "\n")
     print(dict(counts))
     return 0
