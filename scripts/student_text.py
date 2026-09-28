@@ -120,8 +120,9 @@ class _ProjectorOverride(nn.Module):
 
 def install_student(model: TextToLatentRFDiT, path: Path) -> StudentTextEncoder:
     """Load a trained student and make ``model`` use it for the text condition."""
-    dtype = next(model.parameters()).dtype
-    device = next(model.parameters()).device
+    # Match the text path, which may be fp32 while the DiT runs in bf16.
+    dtype = model.text_norm.weight.dtype
+    device = model.text_norm.weight.device
     student = StudentTextEncoder.load(model, path).to(device=device, dtype=dtype)
     student.requires_grad_(False)
     student.eval()

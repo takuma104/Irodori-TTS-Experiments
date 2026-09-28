@@ -70,6 +70,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--precision", choices=["fp32", "bf16"], default="bf16")
     parser.add_argument(
+        "--text-precision",
+        choices=["fp32", "bf16"],
+        default=None,
+        help="Text/caption encoder precision (default: --precision).",
+    )
+    parser.add_argument(
+        "--codec-precision",
+        choices=["fp32", "bf16"],
+        default=None,
+        help="DACVAE codec precision (default: --precision).",
+    )
+    parser.add_argument(
         "--sdpa-backend",
         choices=["efficient", "cudnn"],
         default="efficient",
@@ -116,7 +128,11 @@ def main() -> int:
 
     set_sdpa_backend(args.sdpa_backend)
     runtime = load_runtime(
-        args.hf_checkpoint, device=args.device, precision=args.precision
+        args.hf_checkpoint,
+        device=args.device,
+        precision=args.precision,
+        text_precision=args.text_precision,
+        codec_precision=args.codec_precision,
     )
     if args.student is not None:
         install_student(runtime.model, args.student)

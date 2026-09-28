@@ -1,0 +1,7 @@
+{
+  "model": "openai/whisper-large-v3-turbo",
+  "language": "ja",
+  "max_new_tokens": 128,
+  "row_count": 1764,
+  "complete": true
+}

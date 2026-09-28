@@ -53,22 +53,45 @@ def set_sdpa_backend(name: str) -> None:
     _SDPA_PRIORITY[:] = priorities[name]
 
 
+TEXT_MODULES = (
+    "pretrained_text_backbone",
+    "text_encoder",
+    "text_norm",
+    "caption_encoder",
+    "caption_norm",
+)
+
+
 def load_runtime(
     hf_checkpoint: str = DEFAULT_HF_CHECKPOINT,
     *,
     device: str = "cuda",
     precision: str = "bf16",
+    text_precision: str | None = None,
+    codec_precision: str | None = None,
 ) -> InferenceRuntime:
+    """Load the runtime; ``precision`` applies to the DiT and the other modules.
+
+    ``text_precision="fp32"`` keeps the text/caption encoder (ModernBERT and the
+    projectors) in fp32 while the DiT runs in ``precision``. ``codec_precision``
+    defaults to ``precision``.
+    """
     checkpoint = download_hf_checkpoint(hf_checkpoint)
-    return InferenceRuntime.from_key(
+    runtime = InferenceRuntime.from_key(
         RuntimeKey(
             checkpoint=str(checkpoint),
             model_device=device,
             model_precision=precision,
             codec_device=device,
-            codec_precision=precision,
+            codec_precision=codec_precision or precision,
         )
     )
+    if text_precision == "fp32":
+        for name in TEXT_MODULES:
+            module = getattr(runtime.model, name, None)
+            if module is not None:
+                module.float()
+    return runtime
 
 
 @dataclass(frozen=True)
@@ -118,7 +141,8 @@ class BatchSynthesizer:
         self.model = runtime.model
         self.settings = settings if settings is not None else SamplingSettings()
         self.device = runtime.model_device
-        self.dtype = next(self.model.parameters()).dtype
+        # The DiT dtype; the text encoder may run in fp32 (see load_runtime).
+        self.dtype = self.model.in_proj.weight.dtype
         self.hop_length = int(runtime.codec.model.hop_length)
         self.sample_rate = int(runtime.codec.sample_rate)
         self.text_max_len = int(runtime.default_text_max_len)
@@ -130,6 +154,7 @@ class BatchSynthesizer:
                 batch_size=1,
                 messages=[],
             )
+        self.ref_latent = self.ref_latent.to(self.dtype)
         self.cfg_scale_speaker = (
             0.0 if self.no_ref else float(self.settings.cfg_scale_speaker)
         )
@@ -178,6 +203,9 @@ class BatchSynthesizer:
             caption_input_ids=caption_ids,
             caption_mask=caption_mask,
         )
+        text_state = text_state.to(self.dtype)
+        if caption_state is not None:
+            caption_state = caption_state.to(self.dtype)
         duration_features = build_duration_features(
             list(texts),
             token_counts=text_mask.sum(dim=1),
