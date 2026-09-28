@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Experiment data / generated outputs
+data/
+outputs/*/audio/
+outputs/*/results/transcriptions/
