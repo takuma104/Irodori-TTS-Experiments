@@ -110,7 +110,9 @@ def main() -> int:
             handle.write(json.dumps(row, ensure_ascii=False) + "\n")
 
     set_sdpa_backend("efficient")
-    runtime = load_runtime(precision=args.precision)
+    runtime = load_runtime(
+        precision=args.precision, text_precision="fp32", codec_precision="fp32"
+    )
     start = time.perf_counter()
     done = 0
     with (out / "manifest.jsonl").open("a", encoding="utf-8") as manifest:

@@ -15,7 +15,8 @@ MSE over valid frames) plus the predicted log duration. Speaker conditioning is
 dropped for a fraction of samples on both sides, because independent CFG also
 evaluates the text-conditioned, speaker-dropped branch.
 
-Frozen modules run in bf16; student weights stay in fp32 under bf16 autocast.
+The frozen DiT runs in bf16; the text path (teacher and student encoders) runs in
+fp32, matching inference, where a bf16 text encoder costs ~0.5pt on JKYB.
 """
 
 from __future__ import annotations
@@ -201,70 +202,74 @@ class Distiller:
         )
         t = t.to(torch.bfloat16)
 
-        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-            with torch.no_grad():
-                teacher_ids, teacher_mask = self._tokens(teacher_texts)
-                (
-                    teacher_state,
-                    teacher_mask,
-                    speaker_state,
-                    speaker_mask,
-                    caption_state,
-                    caption_mask,
-                ) = model.encode_conditions(
-                    text_input_ids=teacher_ids,
-                    text_mask=teacher_mask,
-                    ref_latent=ref_latent.to(torch.bfloat16),
-                    ref_mask=ref_mask,
-                    caption_input_ids=caption_ids,
-                    caption_mask=caption_mask,
-                )
-                v_teacher = model.forward_with_encoded_conditions(
-                    x_t=x_t,
-                    t=t,
-                    text_state=teacher_state,
-                    text_mask=teacher_mask,
-                    speaker_state=speaker_state,
-                    speaker_mask=speaker_mask,
-                    caption_state=caption_state,
-                    caption_mask=caption_mask,
-                    latent_mask=latent_mask,
-                ).float()
-                dur_teacher = self._duration(
-                    teacher_texts,
-                    teacher_state,
-                    teacher_mask,
-                    speaker_state,
-                    speaker_mask,
-                    caption_state,
-                    caption_mask,
-                    has_speaker,
-                ).float()
-            student_ids, student_mask = self._tokens(student_texts)
-            student_state = self.student.encode(
-                model.pretrained_text_backbone, student_ids, student_mask
+        # The text path runs in fp32 (as in inference); the frozen DiT in bf16.
+        dit_dtype = model.in_proj.weight.dtype
+        with torch.no_grad():
+            teacher_ids, teacher_mask = self._tokens(teacher_texts)
+            (
+                teacher_state,
+                teacher_mask,
+                speaker_state,
+                speaker_mask,
+                caption_state,
+                caption_mask,
+            ) = model.encode_conditions(
+                text_input_ids=teacher_ids,
+                text_mask=teacher_mask,
+                ref_latent=ref_latent.to(dit_dtype),
+                ref_mask=ref_mask,
+                caption_input_ids=caption_ids,
+                caption_mask=caption_mask,
             )
-            v_student = model.forward_with_encoded_conditions(
+            teacher_state = teacher_state.to(dit_dtype)
+            if caption_state is not None:
+                caption_state = caption_state.to(dit_dtype)
+            v_teacher = model.forward_with_encoded_conditions(
                 x_t=x_t,
                 t=t,
-                text_state=student_state,
-                text_mask=student_mask,
+                text_state=teacher_state,
+                text_mask=teacher_mask,
                 speaker_state=speaker_state,
                 speaker_mask=speaker_mask,
                 caption_state=caption_state,
                 caption_mask=caption_mask,
                 latent_mask=latent_mask,
             ).float()
-            dur_student = self._duration(
-                student_texts,
-                student_state,
-                student_mask,
+            dur_teacher = self._duration(
+                teacher_texts,
+                teacher_state,
+                teacher_mask,
                 speaker_state,
                 speaker_mask,
                 caption_state,
                 caption_mask,
                 has_speaker,
             ).float()
+        student_ids, student_mask = self._tokens(student_texts)
+        student_state = self.student.encode(
+            model.pretrained_text_backbone, student_ids, student_mask
+        ).to(dit_dtype)
+        v_student = model.forward_with_encoded_conditions(
+            x_t=x_t,
+            t=t,
+            text_state=student_state,
+            text_mask=student_mask,
+            speaker_state=speaker_state,
+            speaker_mask=speaker_mask,
+            caption_state=caption_state,
+            caption_mask=caption_mask,
+            latent_mask=latent_mask,
+        ).float()
+        dur_student = self._duration(
+            student_texts,
+            student_state,
+            student_mask,
+            speaker_state,
+            speaker_mask,
+            caption_state,
+            caption_mask,
+            has_speaker,
+        ).float()
 
         valid = latent_mask.float()
         per_sample_v = ((v_student - v_teacher) ** 2).mean(dim=-1)
@@ -349,7 +354,9 @@ def main() -> int:
     torch.manual_seed(args.seed)
     rng = random.Random(args.seed)
     set_sdpa_backend("efficient")
-    runtime = load_runtime(precision="bf16")
+    runtime = load_runtime(
+        precision="bf16", text_precision="fp32", codec_precision="fp32"
+    )
     runtime.model.requires_grad_(False)
     runtime.model.eval()
     student = StudentTextEncoder(runtime.model, args.scope).to(runtime.model_device)

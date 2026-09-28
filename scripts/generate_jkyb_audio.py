@@ -72,14 +72,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--text-precision",
         choices=["fp32", "bf16"],
-        default=None,
-        help="Text/caption encoder precision (default: --precision).",
+        default="fp32",
+        help="Text/caption encoder precision. fp32 recovers the 0.5pt JKYB loss of bf16.",
     )
     parser.add_argument(
         "--codec-precision",
         choices=["fp32", "bf16"],
-        default=None,
-        help="DACVAE codec precision (default: --precision).",
+        default="fp32",
+        help="DACVAE codec precision.",
     )
     parser.add_argument(
         "--sdpa-backend",
