@@ -67,7 +67,12 @@ def main() -> int:
     )
     parser.add_argument("--jvs-dir", type=Path, default=Path("data/jvs_ver1"))
     parser.add_argument("--noref-ratio", type=float, default=0.2)
-    parser.add_argument("--split", default=None, help="Only rows of this split.")
+    parser.add_argument(
+        "--splits", default=None, help="Comma-separated splits to keep (default: all)."
+    )
+    parser.add_argument(
+        "--roles", default=None, help="Comma-separated roles to keep (default: all)."
+    )
     parser.add_argument("--precision", choices=["fp32", "bf16"], default="bf16")
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--max-batch-frames", type=int, default=8192)
@@ -75,8 +80,12 @@ def main() -> int:
     args = parser.parse_args()
 
     rows = read_jsonl(args.rows)
-    if args.split is not None:
-        rows = [r for r in rows if r.get("split") == args.split]
+    if args.splits is not None:
+        keep = set(args.splits.split(","))
+        rows = [r for r in rows if r.get("split") in keep]
+    if args.roles is not None:
+        roles = set(args.roles.split(","))
+        rows = [r for r in rows if r.get("role") in roles]
     if args.limit is not None:
         rows = rows[: args.limit]
     speakers = speaker_pool(args.jvs_dir)

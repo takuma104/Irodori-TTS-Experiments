@@ -57,11 +57,25 @@ class Sample:
     latent_path: Path
 
 
-def load_samples(teacher_dirs: list[Path], split: str) -> list[Sample]:
+def misread_keys(results_dirs: list[Path]) -> set[str]:
+    """Keys whose teacher audio was scored wrong by ``jkyb-eval tts``."""
+    keys: set[str] = set()
+    for results_dir in results_dirs:
+        for row in read_jsonl(results_dir / "details" / "all.jsonl"):
+            if not row["target_exact"]:
+                keys.add(row["key"])
+    return keys
+
+
+def load_samples(
+    teacher_dirs: list[Path], split: str, exclude: set[str] | None = None
+) -> list[Sample]:
     samples: list[Sample] = []
     for teacher_dir in teacher_dirs:
         for row in read_jsonl(teacher_dir / "manifest.jsonl"):
             if row.get("split", "train") != split:
+                continue
+            if exclude and row["key"] in exclude:
                 continue
             samples.append(
                 Sample(
@@ -334,6 +348,13 @@ def evaluate(
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--teacher-dir", type=Path, action="append", required=True)
+    parser.add_argument(
+        "--teacher-results",
+        type=Path,
+        action="append",
+        default=[],
+        help="jkyb-eval results of the teacher audio; misread rows are dropped.",
+    )
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument(
         "--scope", default="projector", help="projector, top<N>, or all"
@@ -369,8 +390,10 @@ def main() -> int:
         keep_weight=args.keep_weight,
     )
 
-    train = load_samples(args.teacher_dir, "train")
-    dev = load_samples(args.teacher_dir, "dev")
+    exclude = misread_keys(args.teacher_results)
+    train = load_samples(args.teacher_dir, "train", exclude)
+    dev = load_samples(args.teacher_dir, "dev", exclude)
+    print(f"excluded {len(exclude)} rows whose teacher audio was misread", flush=True)
     print(f"train={len(train)} dev={len(dev)} scope={args.scope}", flush=True)
     backbone_params = [
         p
