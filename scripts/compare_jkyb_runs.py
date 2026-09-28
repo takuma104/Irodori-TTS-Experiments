@@ -31,6 +31,7 @@ from analyze_jkyb_errors import (
     read_jsonl,
     token_type,
 )
+from build_yomi_lexicon import jkyb_group
 
 
 def mcnemar_exact_p(fixed: int, broken: int) -> float:
@@ -143,6 +144,27 @@ def main() -> int:
             HEADERS, grouped_rows(keys, token_types.get, TOKEN_TYPE_LABELS, base, cand)
         ),
     ]
+
+    if all(
+        "_" in k and not str(base_rows[k].get("source", "")).startswith("yomi_ft_")
+        for k in keys
+    ):
+        # JKYB rows: split by the A/B word hold-out groups (build_yomi_lexicon.py).
+        out += [
+            "",
+            "## JKYB の A/B 群別（B 群の対象語は学習語彙から除外）",
+            "",
+            markdown_table(
+                HEADERS,
+                grouped_rows(
+                    keys,
+                    lambda k: jkyb_group(k.rsplit("_", 1)[0]),
+                    {"A": "A 群", "B": "B 群"},
+                    base,
+                    cand,
+                ),
+            ),
+        ]
 
     sources = sorted({str(base_rows[k].get("source", "")) for k in keys})
     if any(source.startswith("yomi_ft_") for source in sources):

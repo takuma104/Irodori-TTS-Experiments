@@ -86,6 +86,13 @@ def main() -> int:
     parser.add_argument("--per-kanji-cap", type=int, default=3)
     parser.add_argument("--dev-ratio", type=float, default=0.1)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "--exclude",
+        type=Path,
+        action="append",
+        default=[],
+        help="Earlier target files whose (word, reading) pairs are skipped.",
+    )
     args = parser.parse_args()
 
     all_rows = read_jsonl(args.lexicon)
@@ -99,9 +106,17 @@ def main() -> int:
         for kr in r["kanji_readings"]
         if kr["kind"] in ("on", "kun")
     )
-    rows = [r for r in all_rows if usable(r)]
+    excluded = {
+        (r["word"], r["reading"]) for path in args.exclude for r in read_jsonl(path)
+    }
+    rows = [
+        r for r in all_rows if usable(r) and (r["word"], r["reading"]) not in excluded
+    ]
     rng = random.Random(args.seed)
     rng.shuffle(rows)
+    rows_by_word: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        rows_by_word[row["word"]].append(row)
 
     selected: list[dict[str, Any]] = []
     taken: set[tuple[str, str]] = set()
@@ -131,9 +146,8 @@ def main() -> int:
                 # Take every usable reading of the homograph together.
                 group = [
                     r
-                    for r in rows
-                    if r["word"] == row["word"]
-                    and (r["word"], r["reading"]) not in taken
+                    for r in rows_by_word[row["word"]]
+                    if (r["word"], r["reading"]) not in taken
                 ]
                 if len(group) < 2:
                     continue
