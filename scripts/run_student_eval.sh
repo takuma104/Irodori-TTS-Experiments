@@ -4,7 +4,9 @@
 #   bash scripts/run_student_eval.sh <student-dir> <name> [--no-jkyb]
 #
 # - Our dev sentences (words held out of training), synthesized with the eval
-#   speaker (jvs001) by the base model (once) and by the student.
+#   speaker (jvs001) by the base model (once) and by the student. Set
+#   EVAL_SET=train_sample to use outputs/yomi_eval/train_sample_rows.jsonl
+#   (sentences of training words) instead.
 # - Full JKYB-Parakeet, compared with the mixed-precision baseline.
 # Results go to outputs/yomi_eval/<name>/.
 set -euo pipefail
@@ -18,7 +20,8 @@ REF_WAV=data/jvs_ver1/jvs001/parallel100/wav24kHz16bit/VOICEACTRESS100_001.wav
 BASE_JKYB=outputs/irodori-v4.1-small_jvs001_bf16mix
 DEV_ROWS=${DEV_ROWS:-data/yomi/rows_pilot.jsonl}
 E=outputs/yomi_eval
-DEV_SET=$E/dev_rows.jsonl
+EVAL_SET=${EVAL_SET:-dev}
+DEV_SET=$E/${EVAL_SET}_rows.jsonl
 
 gen() {  # gen <run-dir> [extra args...]
   local run=$1
@@ -38,7 +41,7 @@ jkyb_eval() {  # jkyb_eval <run-dir> [extra args...]
 }
 
 mkdir -p "$E"
-if [ ! -f "$DEV_SET" ]; then
+if [ "$EVAL_SET" = dev ] && [ ! -f "$DEV_SET" ]; then
   uv run python -c "
 import json, sys
 with open('$DEV_ROWS') as f, open('$DEV_SET', 'w') as out:
@@ -50,15 +53,16 @@ with open('$DEV_ROWS') as f, open('$DEV_SET', 'w') as out:
 fi
 
 # Base model on our dev sentences (once).
-if [ ! -f "$E/base/dev/results/summary.json" ]; then
-  gen "$E/base/dev" --dataset "$DEV_SET"
-  jkyb_eval "$E/base/dev" --dataset "../$DEV_SET" --skip-text-cer
+if [ ! -f "$E/base/$EVAL_SET/results/summary.json" ]; then
+  gen "$E/base/$EVAL_SET" --dataset "$DEV_SET"
+  jkyb_eval "$E/base/$EVAL_SET" --dataset "../$DEV_SET" --skip-text-cer
 fi
 
-gen "$E/$NAME/dev" --dataset "$DEV_SET" --student "$STUDENT"
-jkyb_eval "$E/$NAME/dev" --dataset "../$DEV_SET" --skip-text-cer
-uv run python scripts/compare_jkyb_runs.py "$E/base/dev/results" "$E/$NAME/dev/results" \
-  --base-label base --cand-label "$NAME" --output "$E/$NAME/dev/compare.md" > /dev/null
+gen "$E/$NAME/$EVAL_SET" --dataset "$DEV_SET" --student "$STUDENT"
+jkyb_eval "$E/$NAME/$EVAL_SET" --dataset "../$DEV_SET" --skip-text-cer
+uv run python scripts/compare_jkyb_runs.py "$E/base/$EVAL_SET/results" \
+  "$E/$NAME/$EVAL_SET/results" --base-label base --cand-label "$NAME" \
+  --output "$E/$NAME/$EVAL_SET/compare.md" > /dev/null
 
 if [ "$RUN_JKYB" = 1 ]; then
   R=$E/$NAME/jkyb

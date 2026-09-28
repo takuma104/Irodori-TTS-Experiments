@@ -85,7 +85,9 @@ def load_samples(
                     ref_wav=row["ref_wav"],
                     role=row.get("role") or "general",
                     bucket=row.get("bucket") or "H",
-                    latent_path=teacher_dir / "latents" / f"{row['key']}.pt",
+                    latent_path=Path(row["latent_path"])
+                    if "latent_path" in row
+                    else teacher_dir / "latents" / f"{row['key']}.pt",
                 )
             )
     return samples
@@ -368,6 +370,12 @@ def main() -> int:
     parser.add_argument("--speaker-dropout", type=float, default=0.2)
     parser.add_argument("--duration-weight", type=float, default=1.0)
     parser.add_argument("--keep-weight", type=float, default=1.0)
+    parser.add_argument(
+        "--target-repeat",
+        type=int,
+        default=1,
+        help="Repeat target (kana-teacher) rows this many times per epoch.",
+    )
     parser.add_argument("--eval-every", type=int, default=250)
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
@@ -392,6 +400,8 @@ def main() -> int:
 
     exclude = misread_keys(args.teacher_results)
     train = load_samples(args.teacher_dir, "train", exclude)
+    # Oversample the rows that carry the kana teacher.
+    train += [s for s in train if s.role == "target"] * (args.target_repeat - 1)
     dev = load_samples(args.teacher_dir, "dev", exclude)
     print(f"excluded {len(exclude)} rows whose teacher audio was misread", flush=True)
     print(f"train={len(train)} dev={len(dev)} scope={args.scope}", flush=True)
