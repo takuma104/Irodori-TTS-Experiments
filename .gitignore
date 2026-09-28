@@ -222,3 +222,4 @@ data/
 outputs/*/audio/
 outputs/*/results/details/
 outputs/*/logs/
+outputs/*/error_audio/
