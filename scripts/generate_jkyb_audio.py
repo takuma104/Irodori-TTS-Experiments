@@ -32,6 +32,7 @@ from batch_synth import (
 )
 from huggingface_hub import hf_hub_download
 from irodori_tts.inference_runtime import save_wav
+from student_text import install_student
 
 DATASET_REPO = "Parakeet-Inc/joyo-kanji-yomi-benchmark-parakeet"
 DATASET_FILENAME = "data/common_kanji_source.jsonl"
@@ -74,6 +75,12 @@ def parse_args() -> argparse.Namespace:
         default="efficient",
         help="cudnn (Irodori's default) is slow in bf16 with varying lengths.",
     )
+    parser.add_argument(
+        "--student",
+        type=Path,
+        default=None,
+        help="Trained student text encoder directory (train_kana_distill.py output).",
+    )
     parser.add_argument("--ref-wav", default=None, help="Omit to run with --no-ref.")
     parser.add_argument("--num-steps", type=int, default=40)
     parser.add_argument("--seed", type=int, default=0)
@@ -111,6 +118,8 @@ def main() -> int:
     runtime = load_runtime(
         args.hf_checkpoint, device=args.device, precision=args.precision
     )
+    if args.student is not None:
+        install_student(runtime.model, args.student)
     synth = BatchSynthesizer(
         runtime,
         ref_wav=args.ref_wav,
