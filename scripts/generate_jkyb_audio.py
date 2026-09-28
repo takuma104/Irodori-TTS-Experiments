@@ -3,11 +3,14 @@
 
 Run inside the Irodori-TTS environment, e.g.:
 
-    uv run --project Irodori-TTS --no-sync python scripts/generate_jkyb_audio.py \
-        --output-dir outputs/jkyb/irodori-v4.1-small/audio
+    PYTHONPATH=Irodori-TTS uv run --project Irodori-TTS --no-sync \
+        python scripts/generate_jkyb_audio.py \
+        --output-dir outputs/jkyb/irodori-v4.1-small/audio \
+        --ref-wav data/jvs_ver1/jvs001/parallel100/wav24kHz16bit/VOICEACTRESS100_001.wav
 
-Each dataset row's ``text`` is synthesized and saved as ``<key>.wav``.
-Existing files are skipped so interrupted runs can be resumed.
+Each dataset row's ``text`` is synthesized and saved as ``<key>.wav``. Texts are
+sampled in length-sorted batches (see ``batch_synth.py``). Existing files are
+skipped so interrupted runs can be resumed.
 """
 
 from __future__ import annotations
@@ -18,20 +21,23 @@ import sys
 import time
 from pathlib import Path
 
-from huggingface_hub import hf_hub_download
-from irodori_tts.inference_runtime import (
-    InferenceRuntime,
-    RuntimeKey,
-    SamplingRequest,
-    download_hf_checkpoint,
-    save_wav,
+import torch
+from batch_synth import (
+    DEFAULT_HF_CHECKPOINT,
+    BatchSynthesizer,
+    SamplingSettings,
+    SynthItem,
+    load_runtime,
+    set_sdpa_backend,
 )
+from huggingface_hub import hf_hub_download
+from irodori_tts.inference_runtime import save_wav
 
 DATASET_REPO = "Parakeet-Inc/joyo-kanji-yomi-benchmark-parakeet"
 DATASET_FILENAME = "data/common_kanji_source.jsonl"
 
 
-def load_rows(dataset: Path | None) -> list[dict[str, str]]:
+def load_rows(dataset: Path | None, text_field: str = "text") -> list[dict[str, str]]:
     path = (
         dataset
         if dataset is not None
@@ -46,21 +52,39 @@ def load_rows(dataset: Path | None) -> list[dict[str, str]]:
         for line in handle:
             if line.strip():
                 raw = json.loads(line)
-                rows.append({"key": raw["key"], "text": raw["text"]})
+                rows.append({"key": raw["key"], "text": raw[text_field]})
     return rows
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--hf-checkpoint", default="Aratako/Irodori-TTS-v4.1-Small")
+    parser.add_argument("--hf-checkpoint", default=DEFAULT_HF_CHECKPOINT)
     parser.add_argument("--dataset", type=Path, default=None)
+    parser.add_argument(
+        "--text-field",
+        default="text",
+        help="Dataset field to synthesize (e.g. text_hira from jkyb_kana_oracle.py).",
+    )
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--device", default="cuda")
-    parser.add_argument("--precision", choices=["fp32", "bf16"], default="fp32")
+    parser.add_argument("--precision", choices=["fp32", "bf16"], default="bf16")
+    parser.add_argument(
+        "--sdpa-backend",
+        choices=["efficient", "cudnn"],
+        default="efficient",
+        help="cudnn (Irodori's default) is slow in bf16 with varying lengths.",
+    )
     parser.add_argument("--ref-wav", default=None, help="Omit to run with --no-ref.")
-    parser.add_argument("--caption", default=None)
-    parser.add_argument("--num-steps", type=int, default=None)
+    parser.add_argument("--num-steps", type=int, default=40)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--batch-size", type=int, default=32)
+    parser.add_argument("--max-batch-frames", type=int, default=8192)
+    parser.add_argument("--pad-multiple", type=int, default=1)
+    parser.add_argument(
+        "--save-latents",
+        action="store_true",
+        help="Also save untrimmed latents as <output-dir>/../latents/<key>.pt.",
+    )
     parser.add_argument("--shard", type=int, default=0)
     parser.add_argument("--num-shards", type=int, default=1)
     parser.add_argument("--limit", type=int, default=None)
@@ -69,66 +93,65 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    rows = load_rows(args.dataset)[args.shard :: args.num_shards]
+    rows = load_rows(args.dataset, args.text_field)[args.shard :: args.num_shards]
     if args.limit is not None:
         rows = rows[: args.limit]
     out_dir: Path = args.output_dir
     out_dir.mkdir(parents=True, exist_ok=True)
+    latent_dir = out_dir.parent / "latents"
+    if args.save_latents:
+        latent_dir.mkdir(parents=True, exist_ok=True)
 
     config = {k: (str(v) if isinstance(v, Path) else v) for k, v in vars(args).items()}
     (out_dir.parent / f"generation_config_shard{args.shard}.json").write_text(
         json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
 
-    checkpoint = download_hf_checkpoint(args.hf_checkpoint)
-    runtime = InferenceRuntime.from_key(
-        RuntimeKey(
-            checkpoint=str(checkpoint),
-            model_device=args.device,
-            model_precision=args.precision,
-            codec_device=args.device,
-            codec_precision=args.precision,
-        )
+    set_sdpa_backend(args.sdpa_backend)
+    runtime = load_runtime(
+        args.hf_checkpoint, device=args.device, precision=args.precision
+    )
+    synth = BatchSynthesizer(
+        runtime,
+        ref_wav=args.ref_wav,
+        settings=SamplingSettings(num_steps=args.num_steps),
     )
 
-    todo = [row for row in rows if not (out_dir / f"{row['key']}.wav").is_file()]
+    todo = [
+        SynthItem(key=row["key"], text=row["text"], seed=args.seed)
+        for row in rows
+        if not (out_dir / f"{row['key']}.wav").is_file()
+    ]
     print(f"rows={len(rows)} todo={len(todo)}", flush=True)
-    failures: list[dict[str, str]] = []
     start = time.perf_counter()
-    for index, row in enumerate(todo, start=1):
-        try:
-            result = runtime.synthesize(
-                SamplingRequest(
-                    text=row["text"],
-                    caption=args.caption,
-                    ref_wav=args.ref_wav,
-                    no_ref=args.ref_wav is None,
-                    num_steps=args.num_steps,
-                    seed=args.seed,
-                    cfg_scale_speaker=5.0 if args.ref_wav is not None else 0.0,
-                ),
-                log_fn=None,
-            )
-            save_wav(out_dir / f"{row['key']}.wav", result.audio, result.sample_rate)
-        except Exception as error:  # noqa: BLE001 - keep going over the whole corpus
-            failures.append({"key": row["key"], "error": repr(error)})
-            print(f"error key={row['key']}: {error!r}", file=sys.stderr, flush=True)
-        if index % 100 == 0 or index == len(todo):
-            elapsed = time.perf_counter() - start
-            eta = elapsed / index * (len(todo) - index)
-            print(
-                f"progress {index}/{len(todo)} elapsed={elapsed:.0f}s eta={eta:.0f}s",
-                flush=True,
-            )
+    last_report = 0
 
-    if failures:
-        failure_path = out_dir.parent / f"generation_failures_shard{args.shard}.jsonl"
-        with failure_path.open("w", encoding="utf-8") as handle:
-            for failure in failures:
-                handle.write(json.dumps(failure, ensure_ascii=False) + "\n")
-    print(f"done failures={len(failures)}", flush=True)
+    def report(done: int, total: int) -> None:
+        nonlocal last_report
+        if done - last_report < 200 and done != total:
+            return
+        last_report = done
+        elapsed = time.perf_counter() - start
+        eta = elapsed / done * (total - done)
+        print(
+            f"progress {done}/{total} elapsed={elapsed:.0f}s eta={eta:.0f}s "
+            f"rate={done / elapsed:.2f}/s",
+            flush=True,
+        )
+
+    for output in synth.synthesize(
+        todo,
+        max_batch_size=args.batch_size,
+        max_batch_frames=args.max_batch_frames,
+        pad_multiple=args.pad_multiple,
+        progress=report,
+    ):
+        save_wav(out_dir / f"{output.key}.wav", output.audio, output.sample_rate)
+        if args.save_latents:
+            torch.save(output.latent.float().clone(), latent_dir / f"{output.key}.pt")
+    print("done", flush=True)
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    sys.exit(main())

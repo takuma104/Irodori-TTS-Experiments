@@ -18,6 +18,10 @@ correct and only the kana ASR misheard it (or Whisper's LM auto-corrected).
 - ``other_joyo_reading``: the target was read with another Joyo reading of the
   same kanji (e.g. on/kun confusion).
 - ``other``: any other misreading.
+
+Every row is also classified by how the Irodori (ModernBERT-ja) tokenizer splits
+the target kanji (``TOKEN_TYPE_LABELS``), and ``other_joyo_reading`` errors get
+the direction of the swap (e.g. on→kun).
 """
 
 from __future__ import annotations
@@ -31,6 +35,9 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from huggingface_hub import hf_hub_download
+from tokenizers import Tokenizer
 
 TAG_PATTERN = re.compile(r"<([^>]+)>")
 KANJI_PATTERN = re.compile(r"[㐀-鿿々]")
@@ -47,6 +54,20 @@ ERROR_TYPE_LABELS = {
     "other_joyo_reading": "同じ漢字の別の常用読みで読んだ",
     "other": "その他の読み誤り",
 }
+TOKEN_TYPE_LABELS = {
+    "split_compound": "1文字トークンで前後も漢字（熟語が分割されている）",
+    "single_kanji_word": "1文字トークンで前後は仮名・記号（単漢字の語）",
+    "multi_char_token": "複数文字のトークン（語が語彙にある）",
+}
+SWAP_DIRECTION_LABELS = {
+    "on→kun": "音 → 訓",
+    "on→on": "音 → 別の音",
+    "kun→on": "訓 → 音",
+    "kun→kun": "訓 → 別の訓",
+    "other": "付表の語など",
+}
+TOKENIZER_REPO = "Aratako/Irodori-TTS-v4.1-Small"
+TOKENIZER_FILENAME = "tokenizer/tokenizer.json"
 GENERATION_FAILURE_CONTEXT_CER = 0.3
 VOWEL_ROWS = {
     "ア": "アカサタナハマヤラワガザダバパャ",
@@ -71,6 +92,8 @@ class ErrorRow:
     sentence_kana_cer: float
     target_word: str
     text_asr_agrees: bool
+    token_type: str
+    swap_direction: str | None
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -123,6 +146,57 @@ def target_word(row: dict[str, Any]) -> str:
     return text[start:end]
 
 
+def load_tokenizer() -> Tokenizer:
+    return Tokenizer.from_file(hf_hub_download(TOKENIZER_REPO, TOKENIZER_FILENAME))
+
+
+def token_type(row: dict[str, Any], tokenizer: Tokenizer) -> str:
+    """How the tokenizer splits the target kanji (see ``TOKEN_TYPE_LABELS``)."""
+    text = str(row["text"])
+    start = str(row["tagged_text"]).index("<")
+    offsets = tokenizer.encode(text, add_special_tokens=False).offsets
+    index = next(i for i, (s, e) in enumerate(offsets) if s <= start < e)
+    begin, end = offsets[index]
+    if end - begin > 1:
+        return "multi_char_token"
+    prev_kanji = index > 0 and bool(
+        KANJI_PATTERN.match(text[offsets[index - 1][1] - 1])
+    )
+    next_kanji = index + 1 < len(offsets) and bool(
+        KANJI_PATTERN.match(text[offsets[index + 1][0]])
+    )
+    return "split_compound" if prev_kanji or next_kanji else "single_kanji_word"
+
+
+def build_category_index(rows: list[dict[str, Any]]) -> dict[str, dict[str, set[str]]]:
+    """kanji -> reading category -> readings (sound changes stripped)."""
+    index: dict[str, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
+    for row in rows:
+        kanji = target_kanji(row)
+        for accepted in row["accepted_readings"]:
+            index[kanji][str(row["reading_category"])].add(
+                strip_sound_change(str(accepted["normalized"]))
+            )
+    return index
+
+
+def swap_direction(
+    row: dict[str, Any], category_index: dict[str, dict[str, set[str]]]
+) -> str:
+    """Direction of an other-Joyo-reading error, e.g. ``on→kun``."""
+    predicted = strip_sound_change(str(row["mapped_target"]))
+    readings = category_index[target_kanji(row)]
+    short = {"on_yomi": "on", "kun_yomi": "kun"}
+    expected = short.get(str(row["reading_category"]))
+    if expected is None:
+        return "other"
+    if predicted in readings["on_yomi"]:
+        return f"{expected}→on"
+    if predicted in readings["kun_yomi"]:
+        return f"{expected}→kun"
+    return "other"
+
+
 def build_reading_index(rows: list[dict[str, Any]]) -> dict[str, set[str]]:
     readings: dict[str, set[str]] = defaultdict(set)
     for row in rows:
@@ -153,20 +227,24 @@ def classify(row: dict[str, Any], reading_index: dict[str, set[str]]) -> str:
     return "other"
 
 
-def collect_errors(rows: list[dict[str, Any]]) -> list[ErrorRow]:
+def collect_errors(
+    rows: list[dict[str, Any]], token_types: dict[str, str]
+) -> list[ErrorRow]:
     reading_index = build_reading_index(rows)
+    category_index = build_category_index(rows)
     errors: list[ErrorRow] = []
     for row in rows:
         if row["target_exact"]:
             continue
         word = target_word(row)
         prediction_text = str(row.get("prediction_text") or "")
+        error_type = classify(row, reading_index)
         errors.append(
             ErrorRow(
                 key=str(row["key"]),
                 kanji=target_kanji(row),
                 category=str(row["reading_category"]),
-                error_type=classify(row, reading_index),
+                error_type=error_type,
                 tagged_text=str(row["tagged_text"]),
                 expected=[
                     str(r["reading"])
@@ -179,6 +257,12 @@ def collect_errors(rows: list[dict[str, Any]]) -> list[ErrorRow]:
                 sentence_kana_cer=float(row["sentence_kana_cer"]),
                 target_word=word,
                 text_asr_agrees=word in prediction_text,
+                token_type=token_types[str(row["key"])],
+                swap_direction=(
+                    swap_direction(row, category_index)
+                    if error_type == "other_joyo_reading"
+                    else None
+                ),
             )
         )
     return errors
@@ -196,6 +280,7 @@ def render_report(
     summary: dict[str, Any],
     rows: list[dict[str, Any]],
     errors: list[ErrorRow],
+    token_types: dict[str, str],
     examples_per_type: int,
     seed: int,
 ) -> str:
@@ -274,6 +359,51 @@ def render_report(
         ),
     ]
 
+    out += ["", "## 対象漢字のトークン化別", ""]
+    type_totals = Counter(token_types.values())
+    type_errors = Counter(e.token_type for e in errors)
+    type_swaps = Counter(
+        e.token_type for e in errors if e.error_type == "other_joyo_reading"
+    )
+    type_other = Counter(e.token_type for e in errors if e.error_type == "other")
+    out.append(
+        markdown_table(
+            [
+                "トークン化",
+                "例文数",
+                "誤り",
+                "誤り率",
+                "うち音訓の取り違え",
+                "うちその他",
+            ],
+            [
+                [
+                    label,
+                    f"{type_totals[t]:,}",
+                    f"{type_errors[t]:,}",
+                    f"{type_errors[t] / max(type_totals[t], 1):.2%}",
+                    f"{type_swaps[t]:,}",
+                    f"{type_other[t]:,}",
+                ]
+                for t, label in TOKEN_TYPE_LABELS.items()
+            ],
+        )
+    )
+
+    out += ["", "## 同じ漢字の別の常用読みで読んだ誤りの向き", ""]
+    directions = Counter(
+        e.swap_direction for e in errors if e.error_type == "other_joyo_reading"
+    )
+    out.append(
+        markdown_table(
+            ["正解 → TTSの読み", "件数"],
+            [
+                [label, f"{directions[d]:,}"]
+                for d, label in SWAP_DIRECTION_LABELS.items()
+            ],
+        )
+    )
+
     out += ["", "## よく読み誤る漢字（誤り数上位）", ""]
     kanji_errors = Counter(e.kanji for e in errors)
     kanji_totals = Counter(target_kanji(r) for r in rows)
@@ -331,9 +461,13 @@ def main() -> int:
     summary = json.loads(
         (args.results_dir / "summary.json").read_text(encoding="utf-8")
     )
-    errors = collect_errors(rows)
+    tokenizer = load_tokenizer()
+    token_types = {str(row["key"]): token_type(row, tokenizer) for row in rows}
+    errors = collect_errors(rows, token_types)
     args.output.write_text(
-        render_report(summary, rows, errors, args.examples_per_type, args.seed),
+        render_report(
+            summary, rows, errors, token_types, args.examples_per_type, args.seed
+        ),
         encoding="utf-8",
     )
     errors_path = args.output.with_suffix(".errors.jsonl")
