@@ -6,10 +6,17 @@
 
 Each incorrect row (``target_exact == false``) is assigned one error type:
 
-- ``generation_failure``: the sentence as a whole is broken (high sentence CER).
+- ``marginal``: matches a marginal reading (correct under Relaxed Accuracy).
+- ``generation_failure``: the context around the target is broken or the target
+  span is empty.
+
+Rows whose Whisper (kanji-kana) transcript still contains the original word
+around the target are flagged as ``text_asr_agrees``: the audio may actually be
+correct and only the kana ASR misheard it (or Whisper's LM auto-corrected).
+- ``voicing``: differs only in voicing (e.g. missing/extra rendaku).
+- ``sokuon_or_length``: differs only in sokuon (促音化) or vowel length.
 - ``other_joyo_reading``: the target was read with another Joyo reading of the
   same kanji (e.g. on/kun confusion).
-- ``voicing_or_length``: differs only in voicing (rendaku), sokuon or length.
 - ``other``: any other misreading.
 """
 
@@ -26,18 +33,28 @@ from pathlib import Path
 from typing import Any
 
 TAG_PATTERN = re.compile(r"<([^>]+)>")
+KANJI_PATTERN = re.compile(r"[㐀-鿿々]")
 CATEGORY_LABELS = {
     "on_yomi": "音読み",
     "kun_yomi": "訓読み",
     "joyo_appendix_reading": "付表の語",
 }
 ERROR_TYPE_LABELS = {
+    "marginal": "許容読み（marginal）に一致（Relaxedでは正解）",
     "generation_failure": "生成破綻（文全体が崩れている）",
+    "voicing": "清濁（連濁の有無など）の差のみ",
+    "sokuon_or_length": "促音化・長音の差のみ",
     "other_joyo_reading": "同じ漢字の別の常用読みで読んだ",
-    "voicing_or_length": "連濁・促音・長音などの差のみ",
     "other": "その他の読み誤り",
 }
-GENERATION_FAILURE_SENTENCE_CER = 0.3
+GENERATION_FAILURE_CONTEXT_CER = 0.3
+VOWEL_ROWS = {
+    "ア": "アカサタナハマヤラワガザダバパャ",
+    "イ": "イキシチニヒミリギジヂビピ",
+    "ウ": "ウクスツヌフムユルグズヅブプュ",
+    "エ": "エケセテネヘメレゲゼデベペ",
+    "オ": "オコソトノホモヨロヲゴゾドボポョ",
+}
 
 
 @dataclass(frozen=True)
@@ -52,6 +69,8 @@ class ErrorRow:
     prediction_yomi: str
     prediction_text: str
     sentence_kana_cer: float
+    target_word: str
+    text_asr_agrees: bool
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -64,10 +83,44 @@ def target_kanji(row: dict[str, Any]) -> str:
     return match.group(1) if match else ""
 
 
-def strip_voicing_and_length(kana: str) -> str:
+def strip_voicing(kana: str) -> str:
     decomposed = unicodedata.normalize("NFD", kana)
     stripped = "".join(ch for ch in decomposed if ch not in "゙゚")
-    return re.sub(r"[ッーウイ]", "", unicodedata.normalize("NFC", stripped))
+    return unicodedata.normalize("NFC", stripped)
+
+
+def _vowel(kana: str) -> str:
+    for vowel, row in VOWEL_ROWS.items():
+        if kana in row:
+            return vowel
+    return ""
+
+
+def strip_sound_change(kana: str) -> str:
+    """Drop voicing, sokuon, stem-final ク/キ/ツ/チ and vowel lengthening."""
+    text = re.sub(r"[クキツチ]$", "", strip_voicing(kana).replace("ッ", ""))
+    out: list[str] = []
+    for ch in text:
+        if out and ch in "アイウエオ" and _vowel(out[-1]) == ch:
+            continue
+        out.append(ch)
+    return "".join(out)
+
+
+def target_word(row: dict[str, Any]) -> str:
+    """Kanji run containing the target (plus one okurigana for kun readings)."""
+    tagged = str(row["tagged_text"])
+    start = tagged.index("<")
+    end = tagged.index(">") - 1
+    text = tagged.replace("<", "").replace(">", "")
+    while start > 0 and KANJI_PATTERN.match(text[start - 1]):
+        start -= 1
+    while end < len(text) and KANJI_PATTERN.match(text[end]):
+        end += 1
+    is_kun = row["reading_category"] == "kun_yomi"
+    if is_kun and end < len(text) and "ぁ" <= text[end] <= "ゟ":
+        end += 1
+    return text[start:end]
 
 
 def build_reading_index(rows: list[dict[str, Any]]) -> dict[str, set[str]]:
@@ -80,20 +133,23 @@ def build_reading_index(rows: list[dict[str, Any]]) -> dict[str, set[str]]:
 
 
 def classify(row: dict[str, Any], reading_index: dict[str, set[str]]) -> str:
-    predicted = str(row["best_target_reading_normalized"] or row["mapped_target"])
+    # ``mapped_target`` is the normalized span aligned from the ASR kana output.
+    predicted = str(row["mapped_target"])
     expected = [str(r["normalized"]) for r in row["accepted_readings"]]
+    if row["relaxed_target_exact"]:
+        return "marginal"
     if (
-        float(row["sentence_kana_cer"]) >= GENERATION_FAILURE_SENTENCE_CER
+        float(row["alignment_context_error_rate"]) >= GENERATION_FAILURE_CONTEXT_CER
         or predicted == ""
     ):
         return "generation_failure"
-    if predicted in reading_index.get(target_kanji(row), set()) - set(expected):
+    if any(strip_voicing(predicted) == strip_voicing(e) for e in expected):
+        return "voicing"
+    if any(strip_sound_change(predicted) == strip_sound_change(e) for e in expected):
+        return "sokuon_or_length"
+    others = reading_index.get(target_kanji(row), set()) - set(expected)
+    if any(strip_sound_change(predicted) == strip_sound_change(o) for o in others):
         return "other_joyo_reading"
-    if any(
-        strip_voicing_and_length(predicted) == strip_voicing_and_length(e)
-        for e in expected
-    ):
-        return "voicing_or_length"
     return "other"
 
 
@@ -103,6 +159,8 @@ def collect_errors(rows: list[dict[str, Any]]) -> list[ErrorRow]:
     for row in rows:
         if row["target_exact"]:
             continue
+        word = target_word(row)
+        prediction_text = str(row.get("prediction_text") or "")
         errors.append(
             ErrorRow(
                 key=str(row["key"]),
@@ -110,11 +168,17 @@ def collect_errors(rows: list[dict[str, Any]]) -> list[ErrorRow]:
                 category=str(row["reading_category"]),
                 error_type=classify(row, reading_index),
                 tagged_text=str(row["tagged_text"]),
-                expected=[str(r["reading"]) for r in row["accepted_readings"]],
+                expected=[
+                    str(r["reading"])
+                    + ("（許容）" if r["category"] == "marginal" else "")
+                    for r in row["accepted_readings"]
+                ],
                 predicted=str(row["mapped_target"]),
                 prediction_yomi=str(row["prediction_yomi"]),
-                prediction_text=str(row.get("prediction_text") or ""),
+                prediction_text=prediction_text,
                 sentence_kana_cer=float(row["sentence_kana_cer"]),
+                target_word=word,
+                text_asr_agrees=word in prediction_text,
             )
         )
     return errors
@@ -122,7 +186,9 @@ def collect_errors(rows: list[dict[str, Any]]) -> list[ErrorRow]:
 
 def markdown_table(headers: list[str], body: list[list[str]]) -> str:
     lines = ["| " + " | ".join(headers) + " |", "|" + "---|" * len(headers)]
-    lines += ["| " + " | ".join(cell.replace("|", "\\|") for cell in r) + " |" for r in body]
+    lines += [
+        "| " + " | ".join(cell.replace("|", "\\|") for cell in r) + " |" for r in body
+    ]
     return "\n".join(lines)
 
 
@@ -142,7 +208,10 @@ def render_report(
                 ["Accuracy", f"{metrics['accuracy']['rate']:.3%}"],
                 ["Relaxed Accuracy", f"{metrics['relaxed_accuracy']['rate']:.3%}"],
                 ["Target Kana-CER@1", f"{metrics['target_kana_cer']['cer_at_1']:.3%}"],
-                ["Sentence Kana-CER@1", f"{metrics['sentence_kana_cer']['cer_at_1']:.3%}"],
+                [
+                    "Sentence Kana-CER@1",
+                    f"{metrics['sentence_kana_cer']['cer_at_1']:.3%}",
+                ],
                 ["Text CER@1", f"{metrics['text_cer']['cer_at_1']:.3%}"],
             ],
         )
@@ -169,9 +238,12 @@ def render_report(
     out += ["", "## 誤りタイプ別", ""]
     by_type = Counter(e.error_type for e in errors)
     cross = Counter((e.error_type, e.category) for e in errors)
+    agrees = Counter(e.error_type for e in errors if e.text_asr_agrees)
     out.append(
         markdown_table(
-            ["誤りタイプ", "件数", "割合"] + [CATEGORY_LABELS[c] for c in CATEGORY_LABELS],
+            ["誤りタイプ", "件数", "割合"]
+            + [CATEGORY_LABELS[c] for c in CATEGORY_LABELS]
+            + ["うちWhisper書き起こしは原文どおり"],
             [
                 [
                     ERROR_TYPE_LABELS[t],
@@ -179,10 +251,28 @@ def render_report(
                     f"{by_type[t] / max(len(errors), 1):.1%}",
                 ]
                 + [f"{cross[(t, c)]:,}" for c in CATEGORY_LABELS]
+                + [f"{agrees[t]:,}"]
                 for t in ERROR_TYPE_LABELS
+            ]
+            + [
+                ["合計", f"{len(errors):,}", "100%"]
+                + [
+                    f"{sum(cross[(t, c)] for t in ERROR_TYPE_LABELS):,}"
+                    for c in CATEGORY_LABELS
+                ]
+                + [f"{sum(agrees.values()):,}"]
             ],
         )
     )
+    out += [
+        "",
+        (
+            "「Whisper書き起こしは原文どおり」は、whisper-large-v3-turbo の漢字仮名交じり書き起こしに"
+            "対象語（対象漢字を含む漢字列。訓読みは送り仮名1字を含む）がそのまま含まれていた件数。"
+            "カナASR（kana-whisper）側の聞き誤りの可能性がある一方、Whisperの言語モデルが文脈から"
+            "補正しただけの場合も含む。"
+        ),
+    ]
 
     out += ["", "## よく読み誤る漢字（誤り数上位）", ""]
     kanji_errors = Counter(e.kanji for e in errors)
@@ -199,11 +289,20 @@ def render_report(
         pool = [e for e in errors if e.error_type == error_type]
         if not pool:
             continue
-        sample = sorted(rng.sample(pool, min(examples_per_type, len(pool))), key=lambda e: e.key)
+        sample = sorted(
+            rng.sample(pool, min(examples_per_type, len(pool))), key=lambda e: e.key
+        )
         out += ["", f"## 例: {label}（{len(pool):,}件中{len(sample)}件）", ""]
         out.append(
             markdown_table(
-                ["分類", "例文（<>が対象）", "正解", "TTSの読み", "Whisper書き起こし"],
+                [
+                    "分類",
+                    "例文（<>が対象）",
+                    "正解",
+                    "TTSの読み",
+                    "Whisper書き起こし",
+                    "W一致",
+                ],
                 [
                     [
                         CATEGORY_LABELS[e.category],
@@ -211,6 +310,7 @@ def render_report(
                         " / ".join(e.expected),
                         e.predicted or "（なし）",
                         e.prediction_text,
+                        "✓" if e.text_asr_agrees else "",
                     ]
                     for e in sample
                 ],
@@ -228,7 +328,9 @@ def main() -> int:
     args = parser.parse_args()
 
     rows = read_jsonl(args.results_dir / "details" / "all.jsonl")
-    summary = json.loads((args.results_dir / "summary.json").read_text(encoding="utf-8"))
+    summary = json.loads(
+        (args.results_dir / "summary.json").read_text(encoding="utf-8")
+    )
     errors = collect_errors(rows)
     args.output.write_text(
         render_report(summary, rows, errors, args.examples_per_type, args.seed),

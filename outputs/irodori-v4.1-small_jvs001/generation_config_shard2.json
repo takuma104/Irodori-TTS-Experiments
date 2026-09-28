@@ -1,0 +1,14 @@
+{
+  "hf_checkpoint": "Aratako/Irodori-TTS-v4.1-Small",
+  "dataset": null,
+  "output_dir": "outputs/irodori-v4.1-small_jvs001/audio",
+  "device": "cuda",
+  "precision": "fp32",
+  "ref_wav": "data/jvs_ver1/jvs001/parallel100/wav24kHz16bit/VOICEACTRESS100_001.wav",
+  "caption": null,
+  "num_steps": null,
+  "seed": 0,
+  "shard": 2,
+  "num_shards": 3,
+  "limit": null
+}
