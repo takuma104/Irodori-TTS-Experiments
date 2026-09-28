@@ -225,3 +225,5 @@ outputs/**/results/details/
 outputs/**/logs/
 outputs/**/error_audio/
 outputs/**/run.log
+outputs/**/student/
+outputs/**/train/student/

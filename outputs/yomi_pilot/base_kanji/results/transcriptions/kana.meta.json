@@ -1,0 +1,7 @@
+{
+  "model": "sbintuitions/kana-whisper",
+  "language": "ja",
+  "max_new_tokens": 128,
+  "row_count": 6972,
+  "complete": true
+}

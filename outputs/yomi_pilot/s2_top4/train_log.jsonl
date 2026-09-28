@@ -1,0 +1,6 @@
+{"step": 0, "dev": {"loss": 0.004326701389592407, "v_target": 0.004705992776767484, "v_keep": 0.0, "dur": 0.001539352280087769}}
+{"step": 25, "train": {"loss": 0.00324, "v_target": 0.00408, "v_keep": 9e-05, "dur": 0.00109, "grad_norm": 0.09044}}
+{"step": 50, "train": {"loss": 0.00392, "v_target": 0.00415, "v_keep": 0.00011, "dur": 0.00173, "grad_norm": 0.1421}}
+{"step": 75, "train": {"loss": 0.00483, "v_target": 0.00426, "v_keep": 0.00013, "dur": 0.00266, "grad_norm": 0.1468}}
+{"step": 100, "train": {"loss": 0.00439, "v_target": 0.00399, "v_keep": 0.00016, "dur": 0.00256, "grad_norm": 0.18979}}
+{"step": 125, "train": {"loss": 0.0053, "v_target": 0.00401, "v_keep": 0.00022, "dur": 0.00312, "grad_norm": 0.16871}}

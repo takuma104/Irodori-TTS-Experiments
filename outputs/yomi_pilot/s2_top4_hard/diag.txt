@@ -1,0 +1,12 @@
+== diag train
+t    share_in_window  per-frame(in/out)  student_removed_in  student_removed_out
+0.9  67.8%            7.1x               +25.7%             +32.8%
+0.7  92.6%            42.0x               +48.7%             +39.6%
+0.5  88.7%            26.4x               +53.9%             -11.4%
+0.3  49.9%            3.3x               +15.5%             -17.3%
+== diag dev
+t    share_in_window  per-frame(in/out)  student_removed_in  student_removed_out
+0.9  79.0%            12.6x               +12.8%             +8.0%
+0.7  89.3%            27.8x               +36.1%             +28.7%
+0.5  85.2%            19.3x               +33.5%             -7.9%
+0.3  57.6%            4.5x               +26.2%             -19.3%

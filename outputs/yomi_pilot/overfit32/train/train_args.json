@@ -1,0 +1,18 @@
+{
+  "teacher_dir": "[PosixPath('outputs/yomi_pilot/overfit32/teacher')]",
+  "teacher_results": "[]",
+  "output_dir": "outputs/yomi_pilot/overfit32/train",
+  "scope": "top4",
+  "steps": "300",
+  "batch_size": "32",
+  "lr": "0.0003",
+  "backbone_lr": "0.0001",
+  "warmup_steps": "20",
+  "weight_decay": "0.0",
+  "speaker_dropout": "0.0",
+  "duration_weight": "1.0",
+  "keep_weight": "1.0",
+  "target_repeat": "1",
+  "eval_every": "50",
+  "seed": "0"
+}

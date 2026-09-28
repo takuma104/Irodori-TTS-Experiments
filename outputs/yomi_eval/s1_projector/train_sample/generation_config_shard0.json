@@ -1,0 +1,22 @@
+{
+  "hf_checkpoint": "Aratako/Irodori-TTS-v4.1-Small",
+  "dataset": "outputs/yomi_eval/train_sample_rows.jsonl",
+  "text_field": "text",
+  "output_dir": "outputs/yomi_eval/s1_projector/train_sample/audio",
+  "device": "cuda",
+  "precision": "bf16",
+  "text_precision": "fp32",
+  "codec_precision": "fp32",
+  "sdpa_backend": "efficient",
+  "student": "outputs/yomi_pilot/s1_projector/student",
+  "ref_wav": "data/jvs_ver1/jvs001/parallel100/wav24kHz16bit/VOICEACTRESS100_001.wav",
+  "num_steps": 40,
+  "seed": 0,
+  "batch_size": 32,
+  "max_batch_frames": 8192,
+  "pad_multiple": 1,
+  "save_latents": false,
+  "shard": 0,
+  "num_shards": 1,
+  "limit": null
+}

@@ -1,0 +1,67 @@
+{"step": 0, "dev": {"loss": 0.004326701389592407, "v_target": 0.004705992776767484, "v_keep": 0.0, "dur": 0.001539352280087769}}
+{"step": 25, "train": {"loss": 0.00321, "v_target": 0.00408, "v_keep": 9e-05, "dur": 0.00107, "grad_norm": 0.04993}}
+{"step": 50, "train": {"loss": 0.00376, "v_target": 0.00418, "v_keep": 0.00011, "dur": 0.00156, "grad_norm": 0.06876}}
+{"step": 75, "train": {"loss": 0.00431, "v_target": 0.0043, "v_keep": 0.00012, "dur": 0.00212, "grad_norm": 0.07873}}
+{"step": 100, "train": {"loss": 0.00495, "v_target": 0.00402, "v_keep": 0.00014, "dur": 0.00312, "grad_norm": 0.13382}}
+{"step": 125, "train": {"loss": 0.0046, "v_target": 0.00408, "v_keep": 0.00018, "dur": 0.00239, "grad_norm": 0.09215}}
+{"step": 150, "train": {"loss": 0.00477, "v_target": 0.00513, "v_keep": 0.00023, "dur": 0.00228, "grad_norm": 0.1007}}
+{"step": 175, "train": {"loss": 0.00485, "v_target": 0.00392, "v_keep": 0.00023, "dur": 0.00277, "grad_norm": 0.11173}}
+{"step": 200, "train": {"loss": 0.00429, "v_target": 0.00434, "v_keep": 0.00024, "dur": 0.00211, "grad_norm": 0.09891}}
+{"step": 225, "train": {"loss": 0.00532, "v_target": 0.00504, "v_keep": 0.00028, "dur": 0.00272, "grad_norm": 0.0896}}
+{"step": 250, "train": {"loss": 0.00565, "v_target": 0.00449, "v_keep": 0.00022, "dur": 0.00354, "grad_norm": 0.12157}}
+{"step": 250, "dev": {"loss": 0.005617621359747967, "v_target": 0.004047479159531317, "v_keep": 0.0002204734703160024, "dur": 0.0031296313249705625}}
+{"step": 275, "train": {"loss": 0.00503, "v_target": 0.00365, "v_keep": 0.00023, "dur": 0.0031, "grad_norm": 0.12123}}
+{"step": 300, "train": {"loss": 0.00369, "v_target": 0.00393, "v_keep": 0.00029, "dur": 0.00171, "grad_norm": 0.06784}}
+{"step": 325, "train": {"loss": 0.00405, "v_target": 0.00414, "v_keep": 0.00031, "dur": 0.00189, "grad_norm": 0.07221}}
+{"step": 350, "train": {"loss": 0.00506, "v_target": 0.00461, "v_keep": 0.00025, "dur": 0.00259, "grad_norm": 0.07277}}
+{"step": 375, "train": {"loss": 0.00487, "v_target": 0.0049, "v_keep": 0.00029, "dur": 0.00252, "grad_norm": 0.085}}
+{"step": 400, "train": {"loss": 0.00433, "v_target": 0.00283, "v_keep": 0.00029, "dur": 0.00281, "grad_norm": 0.09694}}
+{"step": 425, "train": {"loss": 0.00421, "v_target": 0.00543, "v_keep": 0.00029, "dur": 0.00175, "grad_norm": 0.06825}}
+{"step": 450, "train": {"loss": 0.00357, "v_target": 0.00366, "v_keep": 0.00028, "dur": 0.00163, "grad_norm": 0.06788}}
+{"step": 475, "train": {"loss": 0.00416, "v_target": 0.00432, "v_keep": 0.00026, "dur": 0.00189, "grad_norm": 0.07619}}
+{"step": 500, "train": {"loss": 0.00491, "v_target": 0.00445, "v_keep": 0.00027, "dur": 0.00272, "grad_norm": 0.08115}}
+{"step": 500, "dev": {"loss": 0.005047618153704596, "v_target": 0.0038224480780107636, "v_keep": 0.00028874580207879523, "dur": 0.0026577288900235933}}
+{"step": 525, "train": {"loss": 0.00436, "v_target": 0.0045, "v_keep": 0.00033, "dur": 0.00158, "grad_norm": 0.06134}}
+{"step": 550, "train": {"loss": 0.00449, "v_target": 0.00386, "v_keep": 0.0003, "dur": 0.00234, "grad_norm": 0.08119}}
+{"step": 575, "train": {"loss": 0.00387, "v_target": 0.0039, "v_keep": 0.00031, "dur": 0.0019, "grad_norm": 0.07856}}
+{"step": 600, "train": {"loss": 0.00315, "v_target": 0.00305, "v_keep": 0.0003, "dur": 0.00153, "grad_norm": 0.05873}}
+{"step": 625, "train": {"loss": 0.00349, "v_target": 0.00309, "v_keep": 0.00032, "dur": 0.00169, "grad_norm": 0.07648}}
+{"step": 650, "train": {"loss": 0.00374, "v_target": 0.00381, "v_keep": 0.00031, "dur": 0.00185, "grad_norm": 0.06418}}
+{"step": 675, "train": {"loss": 0.0042, "v_target": 0.0044, "v_keep": 0.00041, "dur": 0.00179, "grad_norm": 0.07244}}
+{"step": 700, "train": {"loss": 0.00387, "v_target": 0.00407, "v_keep": 0.00027, "dur": 0.00171, "grad_norm": 0.07701}}
+{"step": 725, "train": {"loss": 0.00428, "v_target": 0.00448, "v_keep": 0.00027, "dur": 0.00209, "grad_norm": 0.08413}}
+{"step": 750, "train": {"loss": 0.00341, "v_target": 0.00416, "v_keep": 0.00031, "dur": 0.00127, "grad_norm": 0.05335}}
+{"step": 750, "dev": {"loss": 0.0046144956947370835, "v_target": 0.0037742660780038153, "v_keep": 0.00027495993625572217, "dur": 0.0022604512258632375}}
+{"step": 775, "train": {"loss": 0.00464, "v_target": 0.00463, "v_keep": 0.00034, "dur": 0.00232, "grad_norm": 0.08512}}
+{"step": 800, "train": {"loss": 0.00385, "v_target": 0.00333, "v_keep": 0.00031, "dur": 0.00202, "grad_norm": 0.08669}}
+{"step": 825, "train": {"loss": 0.00381, "v_target": 0.00406, "v_keep": 0.0003, "dur": 0.00168, "grad_norm": 0.06237}}
+{"step": 850, "train": {"loss": 0.00327, "v_target": 0.00346, "v_keep": 0.00027, "dur": 0.00144, "grad_norm": 0.06047}}
+{"step": 875, "train": {"loss": 0.00318, "v_target": 0.00418, "v_keep": 0.0003, "dur": 0.00101, "grad_norm": 0.04313}}
+{"step": 900, "train": {"loss": 0.00299, "v_target": 0.00391, "v_keep": 0.0003, "dur": 0.00096, "grad_norm": 0.05108}}
+{"step": 925, "train": {"loss": 0.00351, "v_target": 0.0044, "v_keep": 0.0003, "dur": 0.0011, "grad_norm": 0.04887}}
+{"step": 950, "train": {"loss": 0.00337, "v_target": 0.00365, "v_keep": 0.00035, "dur": 0.00148, "grad_norm": 0.05342}}
+{"step": 975, "train": {"loss": 0.00376, "v_target": 0.00407, "v_keep": 0.0003, "dur": 0.00159, "grad_norm": 0.05455}}
+{"step": 1000, "train": {"loss": 0.00355, "v_target": 0.00491, "v_keep": 0.00036, "dur": 0.00134, "grad_norm": 0.06424}}
+{"step": 1000, "dev": {"loss": 0.004817008094063827, "v_target": 0.00370631882521723, "v_keep": 0.0003220977964312104, "dur": 0.0024878828195921544}}
+{"step": 1025, "train": {"loss": 0.00294, "v_target": 0.00355, "v_keep": 0.00031, "dur": 0.00105, "grad_norm": 0.04981}}
+{"step": 1050, "train": {"loss": 0.00325, "v_target": 0.00379, "v_keep": 0.00035, "dur": 0.00122, "grad_norm": 0.05615}}
+{"step": 1075, "train": {"loss": 0.00269, "v_target": 0.00308, "v_keep": 0.00041, "dur": 0.00099, "grad_norm": 0.04839}}
+{"step": 1100, "train": {"loss": 0.00344, "v_target": 0.00436, "v_keep": 0.00031, "dur": 0.00116, "grad_norm": 0.05212}}
+{"step": 1125, "train": {"loss": 0.00311, "v_target": 0.0035, "v_keep": 0.00034, "dur": 0.00135, "grad_norm": 0.0533}}
+{"step": 1150, "train": {"loss": 0.00369, "v_target": 0.00367, "v_keep": 0.00027, "dur": 0.00169, "grad_norm": 0.06869}}
+{"step": 1175, "train": {"loss": 0.00307, "v_target": 0.00341, "v_keep": 0.00034, "dur": 0.00133, "grad_norm": 0.06543}}
+{"step": 1200, "train": {"loss": 0.00317, "v_target": 0.00423, "v_keep": 0.00029, "dur": 0.00096, "grad_norm": 0.04995}}
+{"step": 1225, "train": {"loss": 0.00269, "v_target": 0.00338, "v_keep": 0.00033, "dur": 0.00098, "grad_norm": 0.05163}}
+{"step": 1250, "train": {"loss": 0.00305, "v_target": 0.00373, "v_keep": 0.00028, "dur": 0.00112, "grad_norm": 0.04617}}
+{"step": 1250, "dev": {"loss": 0.004415352666650766, "v_target": 0.0036890302975994666, "v_keep": 0.00029951873376765956, "dur": 0.0021081607013392}}
+{"step": 1275, "train": {"loss": 0.00275, "v_target": 0.00334, "v_keep": 0.00027, "dur": 0.00086, "grad_norm": 0.04264}}
+{"step": 1300, "train": {"loss": 0.00246, "v_target": 0.0032, "v_keep": 0.00034, "dur": 0.00071, "grad_norm": 0.03591}}
+{"step": 1325, "train": {"loss": 0.00286, "v_target": 0.00326, "v_keep": 0.00039, "dur": 0.00102, "grad_norm": 0.04927}}
+{"step": 1350, "train": {"loss": 0.00296, "v_target": 0.00455, "v_keep": 0.00025, "dur": 0.0008, "grad_norm": 0.0403}}
+{"step": 1375, "train": {"loss": 0.0026, "v_target": 0.00363, "v_keep": 0.00031, "dur": 0.00074, "grad_norm": 0.03752}}
+{"step": 1400, "train": {"loss": 0.00246, "v_target": 0.00353, "v_keep": 0.00025, "dur": 0.00076, "grad_norm": 0.03707}}
+{"step": 1425, "train": {"loss": 0.00284, "v_target": 0.00409, "v_keep": 0.00034, "dur": 0.00068, "grad_norm": 0.03645}}
+{"step": 1450, "train": {"loss": 0.00253, "v_target": 0.00341, "v_keep": 0.00028, "dur": 0.00072, "grad_norm": 0.03487}}
+{"step": 1475, "train": {"loss": 0.00289, "v_target": 0.00387, "v_keep": 0.00037, "dur": 0.00084, "grad_norm": 0.05418}}
+{"step": 1500, "train": {"loss": 0.00293, "v_target": 0.00378, "v_keep": 0.00032, "dur": 0.00085, "grad_norm": 0.03966}}
+{"step": 1500, "dev": {"loss": 0.004308130646157744, "v_target": 0.0036861384553568705, "v_keep": 0.0003048257332661056, "dur": 0.0020032949922356887}}

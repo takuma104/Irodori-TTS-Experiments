@@ -1,0 +1,17 @@
+{
+  "teacher_dir": "[PosixPath('outputs/yomi_pilot/teacher'), PosixPath('outputs/yomi_pilot/teacher_general')]",
+  "teacher_results": "[PosixPath('outputs/yomi_pilot/teacher/results')]",
+  "output_dir": "outputs/yomi_pilot/s1_projector",
+  "scope": "projector",
+  "steps": "1500",
+  "batch_size": "32",
+  "lr": "0.0001",
+  "backbone_lr": "1e-05",
+  "warmup_steps": "100",
+  "weight_decay": "0.0",
+  "speaker_dropout": "0.2",
+  "duration_weight": "1.0",
+  "keep_weight": "1.0",
+  "eval_every": "250",
+  "seed": "0"
+}
