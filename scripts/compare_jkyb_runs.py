@@ -144,6 +144,24 @@ def main() -> int:
         ),
     ]
 
+    sources = sorted({str(base_rows[k].get("source", "")) for k in keys})
+    if any(source.startswith("yomi_ft_") for source in sources):
+        out += [
+            "",
+            "## 出典（バケット）別",
+            "",
+            markdown_table(
+                HEADERS,
+                grouped_rows(
+                    keys,
+                    lambda k: str(base_rows[k].get("source", "")),
+                    {source: source for source in sources},
+                    base,
+                    cand,
+                ),
+            ),
+        ]
+
     if args.base_errors is not None:
         base_errors: dict[str, dict[str, Any]] = {
             e["key"]: e for e in read_jsonl(args.base_errors) if e["key"] in base
