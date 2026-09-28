@@ -10,7 +10,8 @@ fields (``kana_text``, bucket, role, split).
 
 The sentence reading comes from SudachiPy, with the target word's span replaced
 by the dictionary reading and the particles は/へ read as ワ/エ (the JKYB
-convention). The tagged span is the bucket's target kanji (A-D, G), the whole
+convention). ``kana_text`` (hiragana) and ``kana_text_kata`` (katakana) are the
+kana-substituted teacher inputs; M0 chose katakana. The tagged span is the bucket's target kanji (A-D, G), the whole
 stem for homographs (E), or the jukujikun group (F).
 """
 
@@ -171,6 +172,10 @@ def main() -> int:
                     k: sentence[k]
                     for k in ("word", "reading", "bucket", "role", "split", "kana_text")
                 },
+                # Katakana version of the kana substitution (the teacher default).
+                "kana_text_kata": text[:word_start]
+                + sentence["stem_reading"]
+                + text[word_start + len(stem) :],
             }
             handle.write(json.dumps(row, ensure_ascii=False) + "\n")
             counts["rows"] += 1

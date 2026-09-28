@@ -9,7 +9,7 @@ Each row gets a reference speaker chosen by a hash of its key (JVS speakers othe
 than jvs001, which is kept for evaluation, or no reference) and a per-key seed.
 The synthesized text is chosen per row:
 
-- ``--text-mode teacher`` (default): ``kana_text`` for target rows, ``text``
+- ``--text-mode teacher`` (default): ``--kana-field`` for target rows, ``text``
   (kanji) for contrast rows. These latents are the distillation targets.
 - ``--text-mode kanji``: always ``text``, for hard mining with the current model.
 
@@ -60,6 +60,11 @@ def main() -> int:
     parser.add_argument("rows", type=Path)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--text-mode", choices=["teacher", "kanji"], default="teacher")
+    parser.add_argument(
+        "--kana-field",
+        default="kana_text_kata",
+        help="Kana-substituted text for target rows (M0 chose katakana).",
+    )
     parser.add_argument("--jvs-dir", type=Path, default=Path("data/jvs_ver1"))
     parser.add_argument("--noref-ratio", type=float, default=0.2)
     parser.add_argument("--split", default=None, help="Only rows of this split.")
@@ -86,7 +91,7 @@ def main() -> int:
         if (out / "latents" / f"{row['key']}.pt").is_file():
             continue
         use_kana = args.text_mode == "teacher" and row.get("role") == "target"
-        text = row["kana_text"] if use_kana else row["text"]
+        text = row[args.kana_field] if use_kana else row["text"]
         h = key_hash(row["key"], "speaker")
         ref = (
             None
