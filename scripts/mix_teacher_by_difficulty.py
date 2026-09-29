@@ -18,7 +18,8 @@ per-key speaker and seed.
   so it is used only where the reading must change.
 - Other rows (contrast): whichever directory has them, kanji teacher.
 
-Writes ``manifest.jsonl`` with explicit ``latent_path`` fields.
+Rows whose teacher audio was misread (``results/`` of either directory) are
+dropped. Writes ``manifest.jsonl`` with explicit ``latent_path`` fields.
 """
 
 from __future__ import annotations
@@ -46,6 +47,12 @@ def main() -> int:
         r["key"]: bool(r["target_exact"])
         for r in read_jsonl(args.base / "results" / "details" / "all.jsonl")
     }
+    teacher_results = args.teacher / "results" / "details" / "all.jsonl"
+    teacher_correct = (
+        {r["key"]: bool(r["target_exact"]) for r in read_jsonl(teacher_results)}
+        if teacher_results.exists()
+        else {}
+    )
     base_rows = {r["key"]: r for r in read_jsonl(args.base / "manifest.jsonl")}
     teacher_rows = {r["key"]: r for r in read_jsonl(args.teacher / "manifest.jsonl")}
     counts: Counter[str] = Counter()
@@ -55,10 +62,16 @@ def main() -> int:
             row = teacher_rows.get(key) or base_rows[key]
             is_target = row.get("role") == "target"
             if is_target and not base_correct.get(key, True) and key in teacher_rows:
+                if not teacher_correct.get(key, True):
+                    counts["dropped (kana teacher misread)"] += 1
+                    continue
                 out = dict(teacher_rows[key])
                 out["latent_path"] = str(args.teacher / "latents" / f"{key}.pt")
                 counts["hard (kana teacher)"] += 1
             elif key in base_rows:
+                if not is_target and not base_correct.get(key, True):
+                    counts["dropped (contrast misread)"] += 1
+                    continue
                 out = dict(base_rows[key])
                 out["text"] = out["kanji_text"]
                 if is_target:
@@ -69,6 +82,9 @@ def main() -> int:
                 # Contrast rows generated only in the teacher directory (kanji text).
                 if is_target:
                     counts["skipped (no base latent)"] += 1
+                    continue
+                if not teacher_correct.get(key, True):
+                    counts["dropped (contrast misread)"] += 1
                     continue
                 out = dict(row)
                 out["latent_path"] = str(args.teacher / "latents" / f"{key}.pt")
