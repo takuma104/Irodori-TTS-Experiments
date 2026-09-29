@@ -213,7 +213,7 @@ async def run(args: argparse.Namespace) -> None:
                 args.model,
                 target,
                 sorted(lexicon_readings[target["word"]] - {target["reading"]}),
-                args.sentences_per_word,
+                int(target.get("n_sentences", args.sentences_per_word)),
                 semaphore,
             )
             for target in todo

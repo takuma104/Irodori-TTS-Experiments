@@ -154,6 +154,26 @@ def jkyb_words(rows: list[dict[str, Any]]) -> dict[str, dict[str, set[str]]]:
     return words
 
 
+def jkyb_word_readings(
+    rows: list[dict[str, Any]],
+) -> dict[str, dict[str, set[tuple[str, str]]]]:
+    """Group (A/B) -> target kanji -> (JKYB target word, accepted reading) pairs."""
+    pairs: dict[str, dict[str, set[tuple[str, str]]]] = {
+        "A": defaultdict(set),
+        "B": defaultdict(set),
+    }
+    for row in rows:
+        target = target_kanji(row)
+        word = (
+            target
+            if row["reading_category"] == "joyo_appendix_reading"
+            else jkyb_target_word(row)
+        )
+        for reading in row["readings"]["natural"] + row["readings"]["marginal"]:
+            pairs[jkyb_group(joyo_key(row))][target].add((word, reading))
+    return pairs
+
+
 # --- JMdict ---------------------------------------------------------------------
 
 
@@ -302,6 +322,9 @@ class LexiconRow:
     jkyb_groups: list[str] = field(default_factory=list)
     jkyb_word: bool = False
     jkyb_excluded: bool = False
+    # Finer exclusion: only when the word also takes a group-B JKYB reading
+    # (外 ほか stays usable although 外 そと is a group-B target).
+    jkyb_excluded_reading: bool = False
 
 
 def build_rows(
@@ -435,8 +458,15 @@ def matches_jkyb_word(word: str, jkyb_word: str) -> bool:
 def mark_jkyb(
     rows: list[LexiconRow],
     words: dict[str, dict[str, set[str]]],
+    word_readings: dict[str, dict[str, set[tuple[str, str]]]],
 ) -> None:
     for row in rows:
+        row.jkyb_excluded_reading = any(
+            matches_jkyb_word(row.word, jkyb_word)
+            and strip_sound_change(kr.reading) == strip_sound_change(reading)
+            for kr in row.kanji_readings
+            for jkyb_word, reading in word_readings["B"].get(kr.kanji, ())
+        )
         groups: set[str] = set()
         for group in ("A", "B"):
             for kr in row.kanji_readings:
@@ -510,7 +540,7 @@ def main() -> int:
     rows = build_rows(entries, furigana, joyo, appendix, tokenizer)
     stats = kanji_statistics(rows)
     assign_buckets(rows, stats, joyo)
-    mark_jkyb(rows, jkyb_words(jkyb_rows))
+    mark_jkyb(rows, jkyb_words(jkyb_rows), jkyb_word_readings(jkyb_rows))
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     with (args.output_dir / "lexicon.jsonl").open("w", encoding="utf-8") as handle:
