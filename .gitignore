@@ -227,3 +227,4 @@ outputs/**/error_audio/
 outputs/**/run.log
 outputs/**/student/
 outputs/**/train/student/
+outputs/**/listen/*.wav
