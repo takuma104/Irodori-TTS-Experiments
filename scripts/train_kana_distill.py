@@ -504,6 +504,18 @@ def main() -> int:
     )
     parser.add_argument("--eval-every", type=int, default=250)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "--init-student",
+        type=Path,
+        default=None,
+        help="Continue from a saved student (its scope overrides --scope).",
+    )
+    parser.add_argument(
+        "--dev-limit",
+        type=int,
+        default=None,
+        help="Evaluate on a fixed random subset of this many dev rows.",
+    )
     args = parser.parse_args()
 
     torch.manual_seed(args.seed)
@@ -514,7 +526,12 @@ def main() -> int:
     )
     runtime.model.requires_grad_(False)
     runtime.model.eval()
-    student = StudentTextEncoder(runtime.model, args.scope).to(runtime.model_device)
+    if args.init_student is not None:
+        student = StudentTextEncoder.load(runtime.model, args.init_student)
+        args.scope = student.scope
+    else:
+        student = StudentTextEncoder(runtime.model, args.scope)
+    student = student.to(runtime.model_device)
     student.train()
     distiller = Distiller(
         runtime,
@@ -536,6 +553,8 @@ def main() -> int:
     # Oversample the rows that carry the kana teacher.
     train += [s for s in train if s.role == "target"] * (args.target_repeat - 1)
     dev = load_samples(args.teacher_dir, "dev", exclude, runs)
+    if args.dev_limit is not None and len(dev) > args.dev_limit:
+        dev = random.Random(0).sample(dev, args.dev_limit)
     print(f"excluded {len(exclude)} rows whose teacher audio was misread", flush=True)
     print(f"train={len(train)} dev={len(dev)} scope={args.scope}", flush=True)
     backbone_params = [
