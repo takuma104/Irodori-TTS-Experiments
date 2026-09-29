@@ -1,0 +1,118 @@
+{
+  "evaluator": {
+    "name": "jkyb-eval",
+    "version": "0.2.0"
+  },
+  "dataset": "/home/takuma/co/Irodori-TTS-Experiments/outputs/yomi_m3/teacher/dataset.jsonl",
+  "inputs": {
+    "audio_dir": "/home/takuma/co/Irodori-TTS-Experiments/outputs/yomi_m3/teacher/audio",
+    "predictions": "/home/takuma/co/Irodori-TTS-Experiments/outputs/yomi_m3/teacher/results/transcriptions/kana.jsonl",
+    "yomi_field": "yomi"
+  },
+  "configuration": {
+    "command": "tts",
+    "kana_asr_model": "sbintuitions/kana-whisper"
+  },
+  "row_count": 24219,
+  "coverage": {
+    "input": "audio",
+    "expected": 24219,
+    "available": 24219,
+    "missing": 0,
+    "rate": 1.0
+  },
+  "metrics": {
+    "accuracy": {
+      "rate": 0.9296420165985383,
+      "matches": 22515
+    },
+    "relaxed_accuracy": {
+      "rate": 0.9296420165985383,
+      "matches": 22515
+    },
+    "target_kana_cer": {
+      "raw": 0.039273769708552314,
+      "cer_at_1": 0.037450132619214746
+    },
+    "relaxed_target_kana_cer": {
+      "raw": 0.039273769708552314,
+      "cer_at_1": 0.037450132619214746
+    },
+    "sentence_kana_cer": {
+      "raw": 0.013857261447591774,
+      "cer_at_1": 0.013857261447591774
+    }
+  },
+  "breakdowns": {
+    "reading_category": {
+      "on_yomi": {
+        "row_count": 14081,
+        "metrics": {
+          "accuracy": {
+            "rate": 0.9229458135075633,
+            "matches": 12996
+          },
+          "relaxed_accuracy": {
+            "rate": 0.9229458135075633,
+            "matches": 12996
+          },
+          "target_kana_cer": {
+            "raw": 0.04335003939790532,
+            "cer_at_1": 0.04267537140557523
+          },
+          "relaxed_target_kana_cer": {
+            "raw": 0.04335003939790532,
+            "cer_at_1": 0.04267537140557523
+          }
+        }
+      },
+      "kun_yomi": {
+        "row_count": 8132,
+        "metrics": {
+          "accuracy": {
+            "rate": 0.9446630595179538,
+            "matches": 7682
+          },
+          "relaxed_accuracy": {
+            "rate": 0.9446630595179538,
+            "matches": 7682
+          },
+          "target_kana_cer": {
+            "raw": 0.033391890942309044,
+            "cer_at_1": 0.030215140655376758
+          },
+          "relaxed_target_kana_cer": {
+            "raw": 0.033391890942309044,
+            "cer_at_1": 0.030215140655376758
+          }
+        }
+      },
+      "joyo_appendix_reading": {
+        "row_count": 2006,
+        "metrics": {
+          "accuracy": {
+            "rate": 0.915752741774676,
+            "matches": 1837
+          },
+          "relaxed_accuracy": {
+            "rate": 0.915752741774676,
+            "matches": 1837
+          },
+          "target_kana_cer": {
+            "raw": 0.034504818876703224,
+            "cer_at_1": 0.030101362578929876
+          },
+          "relaxed_target_kana_cer": {
+            "raw": 0.034504818876703224,
+            "cer_at_1": 0.030101362578929876
+          }
+        }
+      }
+    }
+  },
+  "diagnostics": {
+    "ambiguous_target_alignments": 0,
+    "missing_predictions": 0,
+    "extra_predictions": 0
+  }
+}
