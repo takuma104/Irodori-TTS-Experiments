@@ -1,0 +1,23 @@
+{
+  "teacher_dir": "[PosixPath('outputs/yomi_pilot/teacher_hard'), PosixPath('outputs/yomi_pilot/teacher_general')]",
+  "teacher_results": "[PosixPath('outputs/yomi_pilot/teacher/results')]",
+  "output_dir": "outputs/yomi_pilot/s4_top4_ctx",
+  "scope": "top4",
+  "steps": "4000",
+  "batch_size": "32",
+  "lr": "0.0003",
+  "backbone_lr": "0.0001",
+  "warmup_steps": "100",
+  "weight_decay": "0.0",
+  "speaker_dropout": "0.2",
+  "duration_weight": "1.0",
+  "keep_weight": "1.0",
+  "rows": "[PosixPath('data/yomi/rows_pilot.jsonl')]",
+  "ctx_weight": "1.0",
+  "general_text": "data/yomi/general_text.jsonl",
+  "repr_weight": "1.0",
+  "general_batch_size": "64",
+  "target_repeat": "3",
+  "eval_every": "500",
+  "seed": "0"
+}
