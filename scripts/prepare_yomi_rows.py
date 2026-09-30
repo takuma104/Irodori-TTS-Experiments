@@ -61,6 +61,9 @@ def target_span(
 ) -> tuple[int, int, str] | None:
     """(start, end, category) of the tagged span inside the stem."""
     bucket = sentence["bucket"]
+    if bucket == "R":
+        # Aozora ruby: the whole ruby word is the target.
+        return 0, len(sentence["stem"]), target.get("reading_category", "on_yomi")
     if bucket == "E":
         kinds = [kind for _, _, kind, _ in parts if kind != "kana"]
         category = "on_yomi" if kinds and kinds[0] == "on" else "kun_yomi"

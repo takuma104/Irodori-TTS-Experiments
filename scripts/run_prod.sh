@@ -3,11 +3,12 @@
 #
 #   bash scripts/run_prod.sh
 #
-# Expects data/yomi/sentences_prod.jsonl and targets_prod.jsonl
-# (retrieve_corpus_sentences.py + select_corpus_targets.py).
-# 1. Verify homograph readings with the local LLM.
-# 2. Rows, base-model hard mining, kana teacher (run_yomi_data.sh prod).
-# 3. Continue from S8 with pilot + M3 + kun + prod data (S9).
+# Expects data/yomi/{sentences,targets}_prod.jsonl (retrieve_corpus_sentences.py +
+# select_corpus_targets.py) and data/yomi/{sentences,targets}_aozora.jsonl
+# (make_aozora_ruby_train.py).
+# 1. Verify homograph readings of the Wikipedia sentences with the local LLM.
+# 2. Rows, base-model hard mining, kana teacher (run_yomi_data.sh prod / aozora).
+# 3. Continue from S8 with pilot + M3 + kun + prod + aozora data (S9).
 # 4. Evaluate on JSUT kana labels, Aozora ruby, prod dev, general CER; JKYB last,
 #    as an external score only (not used for choosing anything).
 set -euo pipefail
@@ -36,6 +37,10 @@ if [ ! -f "$M/sentences.done" ]; then
 fi
 
 bash scripts/run_yomi_data.sh prod
+# Aozora ruby readings are human-provided; no LLM step.
+mkdir -p outputs/yomi_aozora
+touch outputs/yomi_aozora/sentences.done
+bash scripts/run_yomi_data.sh aozora
 
 if [ ! -f "$S/student/student.safetensors" ]; then
   mkdir -p "$S"
@@ -43,11 +48,12 @@ if [ ! -f "$S/student/student.safetensors" ]; then
     --init-student outputs/yomi_kun/s8_cont/student \
     --teacher-dir outputs/yomi_m3/pilot_mixed --teacher-dir outputs/yomi_m3/teacher_mixed \
     --teacher-dir outputs/yomi_kun/teacher_mixed --teacher-dir $M/teacher_mixed \
-    --teacher-dir outputs/yomi_pilot/teacher_general \
+    --teacher-dir outputs/yomi_aozora/teacher_mixed --teacher-dir outputs/yomi_pilot/teacher_general \
     --rows data/yomi/rows_pilot.jsonl --rows data/yomi/rows_m3.jsonl \
     --rows data/yomi/rows_kun.jsonl --rows data/yomi/rows_prod.jsonl \
+    --rows data/yomi/rows_aozora.jsonl \
     --general-text data/yomi/general_text.jsonl --ctx-weight 1.0 --repr-weight 1.0 \
-    --output-dir "$S" --steps "${STEPS:-12000}" --batch-size 32 --lr 3e-4 --backbone-lr 1e-4 \
+    --output-dir "$S" --steps "${STEPS:-15000}" --batch-size 32 --lr 3e-4 --backbone-lr 1e-4 \
     --warmup-steps 200 --target-repeat 3 --eval-every 3000 --dev-limit 2000 --seed 4 \
     > "$S/train.log" 2>&1
 fi
