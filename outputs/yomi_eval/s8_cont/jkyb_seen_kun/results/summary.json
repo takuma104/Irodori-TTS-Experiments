@@ -1,0 +1,97 @@
+{
+  "evaluator": {
+    "name": "jkyb-eval",
+    "version": "0.2.0"
+  },
+  "dataset": "/home/takuma/co/Irodori-TTS-Experiments/outputs/yomi_eval/jkyb_seen_kun_rows.jsonl",
+  "inputs": {
+    "audio_dir": "/home/takuma/co/Irodori-TTS-Experiments/outputs/yomi_eval/s8_cont/jkyb_seen_kun/audio",
+    "predictions": "/home/takuma/co/Irodori-TTS-Experiments/outputs/yomi_eval/s8_cont/jkyb_seen_kun/results/transcriptions/kana.jsonl",
+    "yomi_field": "yomi"
+  },
+  "configuration": {
+    "command": "tts",
+    "kana_asr_model": "sbintuitions/kana-whisper"
+  },
+  "row_count": 2437,
+  "coverage": {
+    "input": "audio",
+    "expected": 2437,
+    "available": 2437,
+    "missing": 0,
+    "rate": 1.0
+  },
+  "metrics": {
+    "accuracy": {
+      "rate": 0.9708658186294624,
+      "matches": 2366
+    },
+    "relaxed_accuracy": {
+      "rate": 0.971276159212146,
+      "matches": 2367
+    },
+    "target_kana_cer": {
+      "raw": 0.02498974148543291,
+      "cer_at_1": 0.022527697989331144
+    },
+    "relaxed_target_kana_cer": {
+      "raw": 0.024169060320065654,
+      "cer_at_1": 0.02211735740664752
+    },
+    "sentence_kana_cer": {
+      "raw": 0.005418338324463867,
+      "cer_at_1": 0.005418338324463867
+    }
+  },
+  "breakdowns": {
+    "reading_category": {
+      "on_yomi": {
+        "row_count": 5,
+        "metrics": {
+          "accuracy": {
+            "rate": 1.0,
+            "matches": 5
+          },
+          "relaxed_accuracy": {
+            "rate": 1.0,
+            "matches": 5
+          },
+          "target_kana_cer": {
+            "raw": 0.0,
+            "cer_at_1": 0.0
+          },
+          "relaxed_target_kana_cer": {
+            "raw": 0.0,
+            "cer_at_1": 0.0
+          }
+        }
+      },
+      "kun_yomi": {
+        "row_count": 2432,
+        "metrics": {
+          "accuracy": {
+            "rate": 0.9708059210526315,
+            "matches": 2361
+          },
+          "relaxed_accuracy": {
+            "rate": 0.9712171052631579,
+            "matches": 2362
+          },
+          "target_kana_cer": {
+            "raw": 0.02504111842105263,
+            "cer_at_1": 0.022574013157894736
+          },
+          "relaxed_target_kana_cer": {
+            "raw": 0.02421875,
+            "cer_at_1": 0.02216282894736842
+          }
+        }
+      }
+    }
+  },
+  "diagnostics": {
+    "ambiguous_target_alignments": 0,
+    "missing_predictions": 0,
+    "extra_predictions": 0
+  }
+}

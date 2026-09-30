@@ -1,0 +1,97 @@
+{
+  "evaluator": {
+    "name": "jkyb-eval",
+    "version": "0.2.0"
+  },
+  "dataset": "/home/takuma/co/Irodori-TTS-Experiments/outputs/yomi_kun/base_kanji/dataset.jsonl",
+  "inputs": {
+    "audio_dir": "/home/takuma/co/Irodori-TTS-Experiments/outputs/yomi_kun/base_kanji/audio",
+    "predictions": "/home/takuma/co/Irodori-TTS-Experiments/outputs/yomi_kun/base_kanji/results/transcriptions/kana.jsonl",
+    "yomi_field": "yomi"
+  },
+  "configuration": {
+    "command": "tts",
+    "kana_asr_model": "sbintuitions/kana-whisper"
+  },
+  "row_count": 30952,
+  "coverage": {
+    "input": "audio",
+    "expected": 30952,
+    "available": 30952,
+    "missing": 0,
+    "rate": 1.0
+  },
+  "metrics": {
+    "accuracy": {
+      "rate": 0.9137373998449212,
+      "matches": 28282
+    },
+    "relaxed_accuracy": {
+      "rate": 0.9137373998449212,
+      "matches": 28282
+    },
+    "target_kana_cer": {
+      "raw": 0.08319548548289825,
+      "cer_at_1": 0.0695076247092272
+    },
+    "relaxed_target_kana_cer": {
+      "raw": 0.08319548548289825,
+      "cer_at_1": 0.0695076247092272
+    },
+    "sentence_kana_cer": {
+      "raw": 0.01659943860625207,
+      "cer_at_1": 0.01659943860625207
+    }
+  },
+  "breakdowns": {
+    "reading_category": {
+      "on_yomi": {
+        "row_count": 2932,
+        "metrics": {
+          "accuracy": {
+            "rate": 0.8516371077762619,
+            "matches": 2497
+          },
+          "relaxed_accuracy": {
+            "rate": 0.8516371077762619,
+            "matches": 2497
+          },
+          "target_kana_cer": {
+            "raw": 0.16996361982719418,
+            "cer_at_1": 0.13449295134151887
+          },
+          "relaxed_target_kana_cer": {
+            "raw": 0.16996361982719418,
+            "cer_at_1": 0.13449295134151887
+          }
+        }
+      },
+      "kun_yomi": {
+        "row_count": 28020,
+        "metrics": {
+          "accuracy": {
+            "rate": 0.9202355460385439,
+            "matches": 25785
+          },
+          "relaxed_accuracy": {
+            "rate": 0.9202355460385439,
+            "matches": 25785
+          },
+          "target_kana_cer": {
+            "raw": 0.07411610754223173,
+            "cer_at_1": 0.06270758981679753
+          },
+          "relaxed_target_kana_cer": {
+            "raw": 0.07411610754223173,
+            "cer_at_1": 0.06270758981679753
+          }
+        }
+      }
+    }
+  },
+  "diagnostics": {
+    "ambiguous_target_alignments": 0,
+    "missing_predictions": 0,
+    "extra_predictions": 0
+  }
+}
