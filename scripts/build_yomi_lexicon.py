@@ -138,6 +138,44 @@ def load_joyo(
     return by_kanji, appendix
 
 
+def load_kanjidic(path: Path, max_grade: int = 8) -> dict[str, list[JoyoReading]]:
+    """Per-kanji on/kun readings of Joyo kanji (grade <= 8) from KANJIDIC2.
+
+    Kun readings are keyed by their stem (the part before the okurigana dot), so
+    あ.げる and あ.がる share the key 上_あ. Unlike the JKYB table, KANJIDIC2 also
+    lists readings outside the Joyo table (上 たてまつる).
+    """
+    with gzip.open(path, "rt", encoding="utf-8") as handle:
+        root = ET.fromstring(handle.read())
+    by_kanji: dict[str, list[JoyoReading]] = defaultdict(list)
+    for character in root.iter("character"):
+        kanji = character.findtext("literal", "")
+        grade = character.findtext("misc/grade")
+        if not grade or int(grade) > max_grade:
+            continue
+        entries: dict[str, JoyoReading] = {}
+        for reading in character.iter("reading"):
+            kind = reading.get("r_type")
+            text = (reading.text or "").strip("-")
+            if kind == "ja_on":
+                key, category, stem = f"{kanji}_{text}", "on_yomi", text
+            elif kind == "ja_kun":
+                stem_hira = text.split(".")[0]
+                key, category, stem = (
+                    f"{kanji}_{stem_hira}",
+                    "kun_yomi",
+                    to_katakana(stem_hira),
+                )
+            else:
+                continue
+            entry = entries.setdefault(
+                key, JoyoReading(key=key, kanji=kanji, category=category)
+            )
+            entry.stems.add(stem)
+        by_kanji[kanji] = list(entries.values())
+    return by_kanji
+
+
 def jkyb_words(rows: list[dict[str, Any]]) -> dict[str, dict[str, set[str]]]:
     """Group (A/B) -> target kanji -> JKYB target words containing it."""
     words: dict[str, dict[str, set[str]]] = {
@@ -525,12 +563,26 @@ def main() -> int:
         "--furigana", type=Path, default=Path("data/jmdict/JmdictFurigana.json")
     )
     parser.add_argument("--output-dir", type=Path, default=Path("data/yomi"))
+    parser.add_argument(
+        "--reading-table",
+        choices=["jkyb", "kanjidic2"],
+        default="jkyb",
+        help="Joyo reading table: from the JKYB keys (with the A/B word hold-out), or "
+        "from KANJIDIC2 (Joyo kanji = grade <= 8, no JKYB data at all).",
+    )
+    parser.add_argument(
+        "--kanjidic", type=Path, default=Path("data/jmdict/kanjidic2.xml.gz")
+    )
     args = parser.parse_args()
 
-    jkyb_rows = read_jsonl(
-        Path(hf_hub_download(DATASET_REPO, DATASET_FILENAME, repo_type="dataset"))
-    )
-    joyo, appendix = load_joyo(jkyb_rows)
+    jkyb_rows: list[dict[str, Any]] = []
+    if args.reading_table == "jkyb":
+        jkyb_rows = read_jsonl(
+            Path(hf_hub_download(DATASET_REPO, DATASET_FILENAME, repo_type="dataset"))
+        )
+        joyo, appendix = load_joyo(jkyb_rows)
+    else:
+        joyo, appendix = load_kanjidic(args.kanjidic), {}
     furigana = {
         (item["text"], item["reading"]): item["furigana"]
         for item in json.loads(args.furigana.read_text(encoding="utf-8-sig"))
@@ -540,7 +592,8 @@ def main() -> int:
     rows = build_rows(entries, furigana, joyo, appendix, tokenizer)
     stats = kanji_statistics(rows)
     assign_buckets(rows, stats, joyo)
-    mark_jkyb(rows, jkyb_words(jkyb_rows), jkyb_word_readings(jkyb_rows))
+    if jkyb_rows:
+        mark_jkyb(rows, jkyb_words(jkyb_rows), jkyb_word_readings(jkyb_rows))
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     with (args.output_dir / "lexicon.jsonl").open("w", encoding="utf-8") as handle:
