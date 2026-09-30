@@ -502,7 +502,21 @@ def main() -> int:
         default=1,
         help="Repeat target (kana-teacher) rows this many times per epoch.",
     )
+    parser.add_argument(
+        "--oversample-dir",
+        type=Path,
+        action="append",
+        default=[],
+        help="Teacher dirs (also given as --teacher-dir) whose train rows are added "
+        "once more, e.g. the new data when continuing from an earlier student.",
+    )
     parser.add_argument("--eval-every", type=int, default=250)
+    parser.add_argument(
+        "--save-every",
+        type=int,
+        default=0,
+        help="Also save the student every N steps to <output-dir>/student_step<N>.",
+    )
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument(
         "--init-student",
@@ -550,6 +564,8 @@ def main() -> int:
     exclude = misread_keys(args.teacher_results)
     runs = target_runs(args.rows)
     train = load_samples(args.teacher_dir, "train", exclude, runs)
+    if args.oversample_dir:
+        train += load_samples(args.oversample_dir, "train", exclude, runs)
     # Oversample the rows that carry the kana teacher.
     train += [s for s in train if s.role == "target"] * (args.target_repeat - 1)
     dev = load_samples(args.teacher_dir, "dev", exclude, runs)
@@ -626,6 +642,8 @@ def main() -> int:
                 print(f"step {step} dev {metrics}", flush=True)
                 log.write(json.dumps({"step": step, "dev": metrics}) + "\n")
                 log.flush()
+            if args.save_every and step % args.save_every == 0 and step < args.steps:
+                student.save(args.output_dir / f"student_step{step}")
     student.save(args.output_dir / "student")
     print(f"saved {args.output_dir / 'student'}", flush=True)
     return 0
