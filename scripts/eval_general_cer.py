@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Whisper CER of synthesized general sentences (plan §6.3 regression check).
 
+With ``--mode kana``, transcribes with kana-whisper instead and scores against
+the rows' ``kana`` field (e.g. JSUT basic5000 human readings), normalized like
+jkyb-eval's Sentence Kana-CER.
+
     cd Joyo-Kanji-Yomi-Benchmark-Parakeet-Edition && uv run --no-sync python \
         ../scripts/eval_general_cer.py ../outputs/yomi_eval/base/regress \
         ../outputs/yomi_eval/s6_cont/regress --rows ../data/yomi/regress_rows.jsonl
@@ -18,7 +22,8 @@ import json
 from pathlib import Path
 
 from jkyb_eval.asr import AsrConfiguration, WhisperTranscriber
-from jkyb_eval.normalization import canonicalize_text
+from jkyb_eval.constants import ASR_MAX_NEW_TOKENS, DEFAULT_KANA_MODEL
+from jkyb_eval.normalization import canonicalize_text, canonicalize_yomi
 from rapidfuzz.distance import Levenshtein
 
 TEXT_MODEL = "openai/whisper-large-v3-turbo"
@@ -30,19 +35,26 @@ def main() -> int:
     parser.add_argument("--rows", type=Path, required=True)
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--batch-size", type=int, default=16)
+    parser.add_argument("--mode", choices=["text", "kana"], default="text")
     args = parser.parse_args()
 
     with args.rows.open(encoding="utf-8") as handle:
         rows = [json.loads(line) for line in handle if line.strip()]
+    kana = args.mode == "kana"
     transcriber = WhisperTranscriber(
         AsrConfiguration(
-            model=TEXT_MODEL, device=args.device, batch_size=args.batch_size
+            model=DEFAULT_KANA_MODEL if kana else TEXT_MODEL,
+            device=args.device,
+            batch_size=args.batch_size,
+            max_new_tokens=ASR_MAX_NEW_TOKENS if kana else None,
         )
     )
+    normalize = canonicalize_yomi if kana else canonicalize_text
+    field = "kana" if kana else "text"
     errors_by_run: list[list[int]] = []
-    total = sum(len(canonicalize_text(r["text"])) for r in rows)
+    total = sum(len(normalize(r[field])) for r in rows)
     for run in args.runs:
-        cache = run / "whisper_text.jsonl"
+        cache = run / ("kana_whisper.jsonl" if kana else "whisper_text.jsonl")
         if cache.exists():
             with cache.open(encoding="utf-8") as handle:
                 texts = {r["key"]: r["text"] for r in map(json.loads, handle)}
@@ -60,9 +72,7 @@ def main() -> int:
                         + "\n"
                     )
         errors = [
-            Levenshtein.distance(
-                canonicalize_text(r["text"]), canonicalize_text(texts[r["key"]])
-            )
+            Levenshtein.distance(normalize(r[field]), normalize(texts[r["key"]]))
             for r in rows
         ]
         errors_by_run.append(errors)
