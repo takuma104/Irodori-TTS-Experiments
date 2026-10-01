@@ -20,27 +20,32 @@ differ from the base model card (FP32, no reference, seeds 0–4), so the number
 are not directly comparable to it. Changes are paired per item against the base model
 (fixed / broken counts, exact McNemar test).
 
-| Evaluation | Items | Base | Released (S10) | Fixed / broken | p |
+| Evaluation | Items | Base | Released checkpoint | Fixed / broken | p |
 |---|---:|---:|---:|---:|---:|
-| Aozora Bunko ruby, held-out works (target reading accuracy) | 3,000 | 62.50% | **63.40%** | 68 / 41 | 0.012 |
-| Wikipedia sentences, held-out words (target reading accuracy) | 6,403 | 84.04% | **84.55%** | 90 / 57 | 0.008 |
-| JSUT BASIC5000, not used in training (sentence kana CER, lower is better) | 2,236 | 1.881% | **1.794%** | 132 / 99 sentences | – |
-| JVS general sentences, not used in training (Whisper CER, lower is better) | 500 | 5.625% | 5.583% | 15 / 14 sentences | – |
-| JKYB-Parakeet, accuracy (external; see the caveat below) | 13,536 | 94.04% | **95.05%** | 208 / 71 | 9e-17 |
-| JKYB-Parakeet, on'yomi / kun'yomi / appendix readings | | 92.98 / 95.87 / 83.87% | 94.50 / 96.22 / 86.29% | | |
+| Aozora Bunko ruby, held-out works (target reading accuracy) | 3,000 | 62.50% | **63.30%** | 68 / 44 | 0.029 |
+| Wikipedia sentences, held-out words (target reading accuracy) | 6,403 | 84.04% | **84.37%** | 83 / 62 | 0.096 |
+| JSUT BASIC5000, not used in training (sentence kana CER, lower is better) | 2,236 | 1.881% | **1.799%** | 134 / 103 sentences | – |
+| JVS general sentences, not used in training (Whisper CER, lower is better) | 500 | 5.625% | 5.650% | 12 / 13 sentences | – |
+| JKYB-Parakeet, accuracy (external; see the caveat below) | 13,536 | 94.04% | **95.06%** | 210 / 72 | 8e-17 |
+| JKYB-Parakeet, on'yomi / kun'yomi / appendix readings | | 92.98 / 95.87 / 83.87% | 94.47 / 96.27 / 86.29% | | |
+
+The released checkpoint is S10 merged into the base checkpoint (see
+[Exporting](#exporting-a-checkpoint)). Before the export, S10 itself scored 63.40%,
+84.55% and 95.05% on the three reading sets. Precision alone moves these numbers by a few
+tenths of a point.
 
 - Words that appear in the training data are fixed in new contexts. Words that never
   appear in training improve only a little.
-- Readings of general sentences did not regress. JSUT kana CER improved slightly, and the
-  Whisper CER of general sentences is on par with the base model.
+- Readings of general sentences did not measurably regress. JSUT kana CER improved
+  slightly, and the Whisper CER of general sentences is on par with the base model.
 - **JKYB caveat.** No JKYB-Parakeet sentence was used for training. The earlier stages
   (S1–S8) did depend on the benchmark in other ways, though:
   - They took their Joyo on/kun reading table from the benchmark's keys.
   - They held out half of the benchmark's target words (group B) from training.
   - Their settings were chosen by JKYB results.
 
-  Group A (words allowed in training) gained +1.25pt. Group B (words held out until S8;
-  the production data no longer excludes them) gained +0.78pt. Read the JKYB numbers as
+  Group A (words allowed in training) gained +1.19pt. Group B (words held out until S8;
+  the production data no longer excludes them) gained +0.85pt. Read the JKYB numbers as
   partly in-domain. The production stages (S9, S10) use no JKYB data and were judged
   only by the other evaluations.
 
