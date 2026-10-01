@@ -51,7 +51,8 @@ evaluate() {  # evaluate <name> <steps> <eval sets...>
 train a1_m3 $E/train_hard_rows.jsonl 900 --ctx-weight 1.0 --repr-weight 1.0
 train a2_corpus "$D/corpus_keys.jsonl" 1500 --ctx-weight 1.0 --repr-weight 1.0
 train b1_window "$D/corpus_keys.jsonl" 1500 --ctx-weight 1.0 --repr-weight 1.0 --window-weight 5
-train b2_top8 "$D/corpus_keys.jsonl" 1500 --ctx-weight 1.0 --repr-weight 1.0 --scope top8
+train b2_top8 "$D/corpus_keys.jsonl" 1500 --ctx-weight 1.0 --repr-weight 1.0 --scope top8 \
+  --grad-checkpoint
 train b3_lowpres "$D/corpus_keys.jsonl" 1500 --ctx-weight 0.3 --repr-weight 0.3
 
 evaluate a1_m3 900 train_hard

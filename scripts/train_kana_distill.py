@@ -584,6 +584,11 @@ def main() -> int:
         "(the target's position in the reading, mapped proportionally).",
     )
     parser.add_argument("--window-margin", type=float, default=0.1)
+    parser.add_argument(
+        "--grad-checkpoint",
+        action="store_true",
+        help="Recompute the student's BERT activations in backward (less memory).",
+    )
     parser.add_argument("--eval-every", type=int, default=250)
     parser.add_argument(
         "--save-every",
@@ -621,6 +626,8 @@ def main() -> int:
         student = StudentTextEncoder(runtime.model, args.scope)
     student = student.to(runtime.model_device)
     student.train()
+    if args.grad_checkpoint and student.backbone is not None:
+        student.backbone.set_gradient_checkpointing(True)
     distiller = Distiller(
         runtime,
         student,
