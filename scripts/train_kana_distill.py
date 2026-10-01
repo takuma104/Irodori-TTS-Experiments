@@ -61,6 +61,8 @@ class Sample:
     # Kanji run around the target (e.g. 従容) whose tokens may change freely;
     # set only for rows taught by the kana teacher.
     free_run: str | None = None
+    # Target position in the reading as fractions (start, end), for --window-weight.
+    window: tuple[float, float] | None = None
 
 
 def misread_keys(results_dirs: list[Path]) -> set[str]:
@@ -92,11 +94,39 @@ def target_runs(rows_files: list[Path]) -> dict[str, str]:
     return runs
 
 
+def read_keys(path: Path) -> set[str]:
+    """Keys from a JSONL file of rows or a plain list (one key per line)."""
+    keys: set[str] = set()
+    with path.open(encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if line:
+                keys.add(json.loads(line)["key"] if line.startswith("{") else line)
+    return keys
+
+
+def target_windows(rows_files: list[Path]) -> dict[str, tuple[float, float]]:
+    """Key -> (start, end) of the tagged target as fractions of the reading."""
+    windows: dict[str, tuple[float, float]] = {}
+    for path in rows_files:
+        for row in read_jsonl(path):
+            tagged = row.get("tagged_yomi")
+            if not tagged:
+                continue
+            start = tagged.index("<")
+            end = tagged.index(">") - 1
+            total = max(len(tagged) - 2, 1)
+            windows[row["key"]] = (start / total, end / total)
+    return windows
+
+
 def load_samples(
     teacher_dirs: list[Path],
     split: str,
     exclude: set[str] | None = None,
     runs: dict[str, str] | None = None,
+    windows: dict[str, tuple[float, float]] | None = None,
+    include: set[str] | None = None,
 ) -> list[Sample]:
     samples: list[Sample] = []
     for teacher_dir in teacher_dirs:
@@ -104,6 +134,8 @@ def load_samples(
             if row.get("split", "train") != split:
                 continue
             if exclude and row["key"] in exclude:
+                continue
+            if include is not None and row["key"] not in include:
                 continue
             samples.append(
                 Sample(
@@ -117,6 +149,9 @@ def load_samples(
                     if "latent_path" in row
                     else teacher_dir / "latents" / f"{row['key']}.pt",
                     free_run=(runs or {}).get(row["key"])
+                    if row.get("role") == "target"
+                    else None,
+                    window=(windows or {}).get(row["key"])
                     if row.get("role") == "target"
                     else None,
                 )
@@ -168,6 +203,8 @@ class Distiller:
         repr_weight: float = 0.0,
         general_texts: list[str] | None = None,
         general_batch_size: int = 64,
+        window_weight: float = 1.0,
+        window_margin: float = 0.1,
     ) -> None:
         self.runtime = runtime
         self.model = runtime.model
@@ -181,6 +218,8 @@ class Distiller:
         self.repr_weight = repr_weight
         self.general_texts = general_texts or []
         self.general_batch_size = general_batch_size
+        self.window_weight = window_weight
+        self.window_margin = window_margin
         self.rng = random.Random(0)
         self.text_max_len = int(runtime.default_text_max_len)
 
@@ -189,6 +228,25 @@ class Distiller:
             texts, max_length=self.text_max_len
         )
         return ids.to(self.device), mask.to(self.device)
+
+    def _window_weights(
+        self, batch: list[Sample], latent_mask: torch.Tensor
+    ) -> torch.Tensor:
+        """Frame weights: ``window_weight`` around the target, 1 elsewhere.
+
+        The target's position in the reading is mapped proportionally onto the
+        valid frames, widened by ``window_margin`` on both sides.
+        """
+        weights = torch.ones(latent_mask.shape, device=latent_mask.device)
+        lengths = latent_mask.sum(dim=1).tolist()
+        for i, sample in enumerate(batch):
+            if sample.window is None:
+                continue
+            frames = int(lengths[i])
+            lo = int(max(0.0, sample.window[0] - self.window_margin) * frames)
+            hi = int(min(1.0, sample.window[1] + self.window_margin) * frames)
+            weights[i, lo : max(hi, lo + 1)] = self.window_weight
+        return weights
 
     def _free_mask(
         self, texts: list[str], runs: list[str | None], length: int
@@ -377,6 +435,8 @@ class Distiller:
         ).float()
 
         valid = latent_mask.float()
+        if self.window_weight != 1.0:
+            valid = valid * self._window_weights(batch, latent_mask)
         per_sample_v = ((v_student - v_teacher) ** 2).mean(dim=-1)
         per_sample_v = (per_sample_v * valid).sum(dim=1) / valid.sum(dim=1).clamp_min(
             1.0
@@ -510,6 +570,20 @@ def main() -> int:
         help="Teacher dirs (also given as --teacher-dir) whose train rows are added "
         "once more, e.g. the new data when continuing from an earlier student.",
     )
+    parser.add_argument(
+        "--include-keys",
+        type=Path,
+        default=None,
+        help="JSONL rows (or one key per line); train only on these keys.",
+    )
+    parser.add_argument(
+        "--window-weight",
+        type=float,
+        default=1.0,
+        help="Weight of the frames around the target in the velocity loss "
+        "(the target's position in the reading, mapped proportionally).",
+    )
+    parser.add_argument("--window-margin", type=float, default=0.1)
     parser.add_argument("--eval-every", type=int, default=250)
     parser.add_argument(
         "--save-every",
@@ -559,16 +633,22 @@ def main() -> int:
         if args.general_text is not None
         else None,
         general_batch_size=args.general_batch_size,
+        window_weight=args.window_weight,
+        window_margin=args.window_margin,
     )
 
     exclude = misread_keys(args.teacher_results)
     runs = target_runs(args.rows)
-    train = load_samples(args.teacher_dir, "train", exclude, runs)
+    windows = target_windows(args.rows)
+    include = read_keys(args.include_keys) if args.include_keys else None
+    train = load_samples(args.teacher_dir, "train", exclude, runs, windows, include)
     if args.oversample_dir:
-        train += load_samples(args.oversample_dir, "train", exclude, runs)
+        train += load_samples(
+            args.oversample_dir, "train", exclude, runs, windows, include
+        )
     # Oversample the rows that carry the kana teacher.
     train += [s for s in train if s.role == "target"] * (args.target_repeat - 1)
-    dev = load_samples(args.teacher_dir, "dev", exclude, runs)
+    dev = load_samples(args.teacher_dir, "dev", exclude, runs, windows)
     if args.dev_limit is not None and len(dev) > args.dev_limit:
         dev = random.Random(0).sample(dev, args.dev_limit)
     print(f"excluded {len(exclude)} rows whose teacher audio was misread", flush=True)
