@@ -17,6 +17,7 @@ from __future__ import annotations
 import math
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 
 import torch
 from irodori_tts.attention import _SDPA_PRIORITY
@@ -76,7 +77,12 @@ def load_runtime(
     projectors) in fp32 while the DiT runs in ``precision``. ``codec_precision``
     defaults to ``precision``.
     """
-    checkpoint = download_hf_checkpoint(hf_checkpoint)
+    # A local model.safetensors (e.g. an exported student) or a Hugging Face repo id.
+    checkpoint = (
+        hf_checkpoint
+        if Path(hf_checkpoint).is_file()
+        else download_hf_checkpoint(hf_checkpoint)
+    )
     runtime = InferenceRuntime.from_key(
         RuntimeKey(
             checkpoint=str(checkpoint),

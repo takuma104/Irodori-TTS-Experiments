@@ -1,0 +1,237 @@
+# Irodori-TTS-Experiments
+
+Experiments on fixing kanji misreadings of
+[Irodori-TTS-v4.1-Small](https://huggingface.co/Aratako/Irodori-TTS-v4.1-Small), especially
+on'yomi/kun'yomi confusions (音訓の取り違え), by fine-tuning only its text encoder on
+text-only data.
+
+The result is released as
+[takuma104/Irodori-TTS-v4.1-Small-Yomi](https://huggingface.co/takuma104/Irodori-TTS-v4.1-Small-Yomi),
+a drop-in replacement checkpoint for the stock Irodori-TTS inference code.
+
+Detailed reports and the experiment plan are written in Japanese under
+[`docs/`](docs/). This README summarizes them.
+
+## Results
+
+Mixed-precision inference (DiT in bf16, text encoder and codec in fp32), 40 RF
+steps, text CFG 3.0, speaker CFG 5.0, reference voice `jvs001`, seed 0. These settings
+differ from the base model card (FP32, no reference, seeds 0–4), so the numbers
+are not directly comparable to it. Changes are paired per item against the base model
+(fixed / broken counts, exact McNemar test).
+
+| Evaluation | Items | Base | Released (S10) | Fixed / broken | p |
+|---|---:|---:|---:|---:|---:|
+| Aozora Bunko ruby, held-out works (target reading accuracy) | 3,000 | 62.50% | **63.40%** | 68 / 41 | 0.012 |
+| Wikipedia sentences, held-out words (target reading accuracy) | 6,403 | 84.04% | **84.55%** | 90 / 57 | 0.008 |
+| JSUT BASIC5000, not used in training (sentence kana CER, lower is better) | 2,236 | 1.881% | **1.794%** | 132 / 99 sentences | – |
+| JVS general sentences, not used in training (Whisper CER, lower is better) | 500 | 5.625% | 5.583% | 15 / 14 sentences | – |
+| JKYB-Parakeet, accuracy (external; see the caveat below) | 13,536 | 94.04% | **95.05%** | 208 / 71 | 9e-17 |
+| JKYB-Parakeet, on'yomi / kun'yomi / appendix readings | | 92.98 / 95.87 / 83.87% | 94.50 / 96.22 / 86.29% | | |
+
+- Words that appear in the training data are fixed in new contexts. Words that never
+  appear in training improve only a little.
+- Readings of general sentences did not regress. JSUT kana CER improved slightly, and the
+  Whisper CER of general sentences is on par with the base model.
+- **JKYB caveat.** No JKYB-Parakeet sentence was used for training. The earlier stages
+  (S1–S8) did depend on the benchmark in other ways, though:
+  - They took their Joyo on/kun reading table from the benchmark's keys.
+  - They held out half of the benchmark's target words (group B) from training.
+  - Their settings were chosen by JKYB results.
+
+  Group A (words allowed in training) gained +1.25pt. Group B (words held out until S8;
+  the production data no longer excludes them) gained +0.78pt. Read the JKYB numbers as
+  partly in-domain. The production stages (S9, S10) use no JKYB data and were judged
+  only by the other evaluations.
+
+## Method
+
+**Kana-substitution self-distillation.** When the target word is written in katakana,
+the base model reads it correctly far more often. With katakana, 85% of its systematic
+JKYB errors and 95% of its on/kun swaps disappear
+([`docs/reports/yomi_m0_diagnostics.md`](docs/reports/yomi_m0_diagnostics.md)). Training
+turns this into supervision for the kanji sentence:
+
+1. The **teacher** is the frozen base model. It sees the sentence with the target word
+   replaced by its katakana reading, and generates the audio latents.
+2. The **student** is a trainable copy of the text path: the top 4 of the 25 ModernBERT
+   layers, the text projector and `text_norm`. It sees the original kanji sentence.
+3. The loss matches the DiT's conditional velocity of student and teacher on noised
+   teacher latents. It also matches the duration predictor's output. The DiT, the duration
+   predictor, the speaker encoder and the codec stay frozen.
+4. **Hard mining.** The kana teacher is used only for sentences that the base model
+   misreads in kanji and reads correctly in kana. These rows are oversampled 3×. For
+   sentences that the base model already reads correctly, the target is the base model's
+   own output for the kanji sentence, which keeps them as they are.
+5. **Preservation losses.** The student's text states must stay close to the original
+   encoder's in two places: on the tokens outside the target word, and on general
+   Wikipedia sentences. Without these losses, words that were not trained regressed.
+
+No recorded speech is needed. All audio latents come from the base model itself,
+conditioned on JVS reference voices.
+
+Irodori-TTS v4.1 runs the reading text and the voice-design caption through one
+shared ModernBERT, with separate projectors. When the student is merged into a stock
+checkpoint, the caption path sees the updated layers too. Without any change, the caption
+states moved by 21% (relative L2 per token). The caption projector is therefore refit to
+the new backbone, by matching states on 5.6k LLM-written captions and Wikipedia sentences.
+This brings the shift down to 6.5%, and in caption-only synthesis the median pitch stays
+within about half a semitone of the base model ([Exporting](#exporting-a-checkpoint)).
+
+## Data
+
+The target words come from a reading lexicon:
+- [JMdict](https://www.edrdg.org/jmdict/j_jmdict.html) for words, readings and frequency tags.
+- [JmdictFurigana](https://github.com/Doublevil/JmdictFurigana) for the reading of each kanji.
+- [KANJIDIC2](https://www.edrdg.org/wiki/index.php/KANJIDIC_Project) for the Joyo reading
+  table of the production lexicon.
+
+Words are grouped into buckets:
+
+| Bucket | Words |
+|---|---|
+| A | on'yomi in compounds that the tokenizer splits |
+| B | on'yomi inside one token |
+| C | kun'yomi |
+| D | kun'yomi with okurigana |
+| E | homographs |
+| F | jukujikun and words from the Joyo appendix |
+| G | contrast words |
+| R | Aozora ruby |
+
+| Stage | Sentences | Hard rows (kana teacher) |
+|---|---|---:|
+| Pilot | LLM-generated sentences for 2.6k words | 1,895 |
+| M3 | LLM-generated sentences for ~21k words | 22,515 |
+| Kun | LLM-generated sentences covering each Joyo kun reading, 8 per single-kanji word | 2,146 |
+| Prod: Wikipedia | 40,609 sentences for 12,060 words. Kept only when UniDic, Sudachi and JMdict agree on the reading; homographs were also checked by the LLM. | 4,784 |
+| Prod: Aozora Bunko | 50,269 sentences, using human ruby readings from 1,000 works | 16,441 |
+| General | JVS transcripts (JSUT-derived text) and 200k Wikipedia sentences, for preservation | – |
+
+The LLM was Qwen3.6-27B (NVFP4) running locally on vLLM. It generated sentences and
+checked homograph readings.
+
+Evaluation sets:
+- **Aozora Bunko ruby.** Ruby readings from a held-out set of works, split by a hash of
+  the work ID. Only rubies that agree with a dictionary or analyzer reading are kept,
+  which removes authors' idiosyncratic readings.
+- **Wikipedia dev words.** Held out by a hash of the word.
+- **JSUT BASIC5000.** The human kana labels of `jsut-label`, for sentences not used as
+  general training sentences.
+- **JVS general sentences.** 500 sentences reserved for regression checks.
+
+## Training history
+
+All runs use batch 32 and the learning rates 3e-4 (projector) / 1e-4 (BERT layers),
+with cosine decay. Each run continues from the previous one, except where marked.
+
+| Run | Data | Steps (total) | JKYB | Notes |
+|---|---|---:|---:|---|
+| S4 | pilot | – | 94.13% | recipe established (top-4 layers, hard mining, preservation losses) |
+| S5 | pilot + M3 | 9k (from base) | 94.30% | |
+| S6 | same | 12k (21k) | 94.56% | user listening test: fixed readings sound natural |
+| S7 | same | 12k (33k) | 94.64% | |
+| S8 | + kun | 12k (45k) | 94.88% | |
+| S9 | + Wikipedia + Aozora | 15k (60k) | 95.08% | new data barely fit; JKYB-free evals flat |
+| **S10** | same, new data 2× | 30k (90k) | 95.05% | released; Aozora +0.90pt, Wikipedia +0.52pt |
+
+The new corpus sentences fit much more slowly than the LLM-generated ones at a similar
+number of exposures. After S10, the hard training rows of Wikipedia and Aozora are
+read correctly 30% and 18% of the time, against 66% for M3. Longer sentences and rare
+kanji explain only part of this ([`docs/reports/yomi_production.md`](docs/reports/yomi_production.md)).
+
+## Repository layout
+
+```
+Irodori-TTS/                                 submodule: Aratako/Irodori-TTS (model and inference code)
+Joyo-Kanji-Yomi-Benchmark-Parakeet-Edition/  submodule: JKYB-Parakeet and jkyb-eval
+scripts/                                     data building, training, evaluation, export
+docs/plans/                                  experiment plan (Japanese)
+docs/reports/                                reports per stage (Japanese)
+data/, outputs/                              local data and results (not tracked)
+```
+
+Main scripts:
+
+| Step | Script |
+|---|---|
+| Lexicon | `build_yomi_lexicon.py` (`--reading-table jkyb` or `kanjidic2`) |
+| Targets | `select_yomi_targets.py`, `select_kun_targets.py`, `retrieve_corpus_sentences.py` + `select_corpus_targets.py`, `make_aozora_ruby_train.py` |
+| Sentences | `generate_yomi_sentences.py` (LLM), `verify_homograph_sentences.py` |
+| Rows | `prepare_yomi_rows.py` (JKYB-format rows with Sudachi readings) |
+| Teacher | `generate_teacher_latents.py` (kanji/kana), `mix_teacher_by_difficulty.py` (hard mining) |
+| Training | `train_kana_distill.py`, `student_text.py` |
+| Evaluation | `generate_jkyb_audio.py` (batched synthesis), `compare_jkyb_runs.py`, `analyze_jkyb_errors.py`, `eval_general_cer.py`, `make_aozora_ruby_eval.py` |
+| Export | `generate_captions.py`, `refit_caption_projector.py`, `export_student_checkpoint.py`, `check_exported_checkpoint.py`, `caption_drift_listen.py`, `run_export_eval.sh` |
+| Pipelines | `run_yomi_data.sh <name>` (rows → hard mining → kana teacher → mix), `run_prod.sh`, `run_prod_s10.sh`, `run_student_eval.sh` |
+
+## Setup
+
+```bash
+git clone --recursive git@github.com:takuma104/Irodori-TTS-Experiments.git
+cd Irodori-TTS-Experiments
+uv sync                                   # data tools (Python 3.13)
+(cd Irodori-TTS && uv sync)               # model, training and synthesis
+(cd Joyo-Kanji-Yomi-Benchmark-Parakeet-Edition && uv sync)   # jkyb-eval, ASR
+```
+
+Scripts that load the model run in the Irodori-TTS environment:
+
+```bash
+PYTHONPATH=Irodori-TTS uv run --project Irodori-TTS --no-sync python scripts/<script>.py ...
+```
+
+External data under `data/`, all downloaded separately:
+- `data/jmdict/JMdict_e.gz`, `data/jmdict/JmdictFurigana.json`, `data/jmdict/kanjidic2.xml.gz`
+- `data/jvs_ver1/`, the [JVS corpus](https://sites.google.com/site/shinnosuketakamichi/research-topics/jvs_corpus)
+- `data/jsut_label/basic5000.yaml`, from [jsut-label](https://github.com/sarulab-speech/jsut-label)
+
+Wikipedia (`wikimedia/wikipedia`, 20231101.ja) and the JKYB-Parakeet dataset are
+downloaded from the Hugging Face Hub. The Aozora Bunko index and texts are downloaded
+from aozora.gr.jp.
+
+The sentence generator expects an OpenAI-compatible LLM server on `localhost:8000`
+(`scripts/serve_llm.sh`). One RTX 5090 (32 GB) was used for everything, one GPU job at a
+time.
+
+## Exporting a checkpoint
+
+```bash
+uv run python scripts/generate_captions.py --output data/yomi/captions.jsonl   # needs the LLM server
+S=outputs/yomi_prod/s10_cont/part2/student
+PYTHONPATH=Irodori-TTS:scripts uv run --project Irodori-TTS --no-sync python \
+  scripts/refit_caption_projector.py $S --output-dir outputs/yomi_prod/s10_cont/caption_refit
+PYTHONPATH=Irodori-TTS uv run --project Irodori-TTS --no-sync python \
+  scripts/export_student_checkpoint.py $S \
+  --caption outputs/yomi_prod/s10_cont/caption_refit/caption.safetensors \
+  --output-dir ../Irodori-TTS-v4.1-Small-Yomi
+PYTHONPATH=Irodori-TTS:scripts uv run --project Irodori-TTS --no-sync python \
+  scripts/check_exported_checkpoint.py ../Irodori-TTS-v4.1-Small-Yomi/model.safetensors --student $S
+```
+
+`export_student_checkpoint.py` writes the student's weights into the base checkpoint,
+with the same keys, dtype and metadata, and copies the tokenizer.
+`check_exported_checkpoint.py` checks two things:
+- The text path of the exported checkpoint is identical to the evaluated student.
+- How far the caption states and emoji tokens drift from the base model.
+
+`caption_drift_listen.py` writes caption-only samples of three systems (the base model,
+the base model with the student installed, and the exported checkpoint) together with
+their median pitch.
+
+In fp32, the exported checkpoint gives exactly the same text states as the student. The
+mixed-precision runtime first casts the whole model to bf16 and then returns the text
+modules to fp32. The merged top layers are therefore bf16-rounded there, unlike the
+`--student` path. `run_export_eval.sh` re-evaluates the exported file itself in that
+setting.
+
+## License
+
+The code in this repository is released under the [MIT License](LICENSE). The data
+sources keep their own licenses, for example:
+- JMdict, JmdictFurigana and KANJIDIC2: CC BY-SA 4.0
+- Wikipedia: CC BY-SA
+- JSUT labels: CC BY-SA 4.0
+- The JVS corpus has its own terms of use.
+
+The submodules are licensed by their authors.
