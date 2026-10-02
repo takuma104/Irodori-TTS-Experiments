@@ -41,8 +41,9 @@ class EncodedBatch:
     speaker_mask: torch.Tensor | None
     caption_state: torch.Tensor | None
     caption_mask: torch.Tensor | None
-    frames: list[int]  # predicted latent length per item
+    frames: list[int]  # latent length per item (predicted by the encoding model unless given)
     latent_mask: torch.Tensor  # (B, max(frames))
+    log_frames: torch.Tensor | None = None  # the encoding model's predicted log1p(frames)
 
     def conditions(self) -> dict[str, torch.Tensor | None]:
         return {
@@ -67,6 +68,39 @@ class EncodedBatch:
             caption_mask=rep(self.caption_mask),
             frames=self.frames * times,
             latent_mask=rep(self.latent_mask),
+            log_frames=rep(self.log_frames),
+        )
+
+    def select(self, index: torch.Tensor) -> EncodedBatch:
+        def take(value: torch.Tensor | None) -> torch.Tensor | None:
+            return None if value is None else value[index]
+
+        return EncodedBatch(
+            text_state=take(self.text_state),
+            text_mask=take(self.text_mask),
+            speaker_state=take(self.speaker_state),
+            speaker_mask=take(self.speaker_mask),
+            caption_state=take(self.caption_state),
+            caption_mask=take(self.caption_mask),
+            frames=[self.frames[i] for i in index.tolist()],
+            latent_mask=take(self.latent_mask),
+            log_frames=take(self.log_frames),
+        )
+
+    def concat(self, other: EncodedBatch) -> EncodedBatch:
+        def cat(x: torch.Tensor | None, y: torch.Tensor | None) -> torch.Tensor | None:
+            return None if x is None or y is None else torch.cat([x, y])
+
+        return EncodedBatch(
+            text_state=cat(self.text_state, other.text_state),
+            text_mask=cat(self.text_mask, other.text_mask),
+            speaker_state=cat(self.speaker_state, other.speaker_state),
+            speaker_mask=cat(self.speaker_mask, other.speaker_mask),
+            caption_state=cat(self.caption_state, other.caption_state),
+            caption_mask=cat(self.caption_mask, other.caption_mask),
+            frames=self.frames + other.frames,
+            latent_mask=cat(self.latent_mask, other.latent_mask),
+            log_frames=cat(self.log_frames, other.log_frames),
         )
 
 
@@ -144,7 +178,6 @@ def _encode_texts(
     return tokenizer.batch_encode(texts, max_length=max(2, min(max_len, max(lengths) + 1)))
 
 
-@torch.no_grad()
 def encode_batch(
     model: TextToLatentRFDiT,
     tokenizer: PretrainedTextTokenizer,
@@ -153,8 +186,27 @@ def encode_batch(
     device: torch.device,
     min_seconds: float = 0.5,
     max_seconds: float = 30.0,
+    frames: list[int] | None = None,
+    grad: bool = False,
 ) -> EncodedBatch:
-    """Encode conditions and predict lengths with ``model``'s encoders and duration predictor."""
+    """Encode conditions and predict lengths with ``model``'s encoders and duration predictor.
+
+    ``frames`` fixes the latent lengths (e.g. the teacher's, for a student encoding the
+    same items); ``grad`` keeps the autograd graph (training the encoders).
+    """
+    with torch.set_grad_enabled(grad):
+        return _encode_batch(model, tokenizer, items, device, min_seconds, max_seconds, frames)
+
+
+def _encode_batch(
+    model: TextToLatentRFDiT,
+    tokenizer: PretrainedTextTokenizer,
+    items: list[ConditionItem],
+    device: torch.device,
+    min_seconds: float,
+    max_seconds: float,
+    frames: list[int] | None,
+) -> EncodedBatch:
     cfg = model.cfg
     batch = len(items)
     texts = [item.text for item in items]
@@ -198,10 +250,13 @@ def encode_batch(
         duration_features=features,
         has_speaker=has_speaker.to(device),
         has_caption=has_caption.to(device),
+        detach_condition=not torch.is_grad_enabled(),
     )
-    min_frames = max(1, math.ceil(min_seconds * FRAMES_PER_SECOND))
-    max_frames = max(1, math.floor(max_seconds * FRAMES_PER_SECOND))
-    frames = [max(min_frames, min(max_frames, round(f))) for f in torch.expm1(log_frames).float().tolist()]
+    if frames is None:
+        min_frames = max(1, math.ceil(min_seconds * FRAMES_PER_SECOND))
+        max_frames = max(1, math.floor(max_seconds * FRAMES_PER_SECOND))
+        predicted = torch.expm1(log_frames.detach()).float().tolist()
+        frames = [max(min_frames, min(max_frames, round(f))) for f in predicted]
     latent_mask = torch.zeros(batch, max(frames), dtype=torch.bool, device=device)
     for i, length in enumerate(frames):
         latent_mask[i, :length] = True
@@ -214,6 +269,7 @@ def encode_batch(
         caption_mask=caption_mask,
         frames=frames,
         latent_mask=latent_mask,
+        log_frames=log_frames,
     )
 
 
