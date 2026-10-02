@@ -225,3 +225,6 @@ outputs/**/results/details/
 outputs/**/logs/
 outputs/**/error_audio/
 outputs/**/run.log
+outputs/**/*.safetensors
+outputs/**/*.pt
+outputs/**/tokenizer/
