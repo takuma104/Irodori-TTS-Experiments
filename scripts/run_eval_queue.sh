@@ -5,7 +5,9 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 S=outputs/students
 
-wait_for() { until [ -f "$1" ]; do sleep 30; done; }
+# Wait for a run to finish: trainers print "saved <path>" after the final save (checkpoints
+# saved mid-run overwrite the same model.safetensors).
+wait_for() { until grep -q "^saved " "$(dirname "$1")/run.log" 2>/dev/null; do sleep 30; done; }
 suite() {  # <checkpoint> <name>
   [ -f "outputs/eval/$2/jkyb_dev/quality_summary.json" ] && return
   scripts/run_eval_suite.sh "$1" "$2" > "outputs/eval/$2.log" 2>&1 || echo "FAILED eval $2"

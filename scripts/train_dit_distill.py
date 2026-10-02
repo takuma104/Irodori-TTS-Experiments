@@ -37,6 +37,7 @@ import json
 import math
 import random
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -61,7 +62,9 @@ from distill_lib import (
     load_checkpoint,
     save_checkpoint,
 )
+from irodori_tts.config import TrainConfig
 from irodori_tts.model import TextToLatentRFDiT
+from irodori_tts.optim import build_optimizer
 from irodori_tts.tokenizer import PretrainedTextTokenizer
 from voice_captions import voice_captions
 
@@ -173,6 +176,24 @@ def teacher_targets(
     )
 
 
+class BlockOutputs:
+    """Records the outputs of selected DiT blocks during a forward pass."""
+
+    def __init__(self, model: TextToLatentRFDiT, indices: list[int]) -> None:
+        self.outputs: dict[int, torch.Tensor] = {}
+        self.handles = [model.blocks[i].register_forward_hook(self._hook(i)) for i in indices]
+
+    def _hook(self, index: int) -> Callable[[torch.nn.Module, tuple, torch.Tensor], None]:
+        def hook(_: torch.nn.Module, __: tuple, output: torch.Tensor) -> None:
+            self.outputs[index] = output
+
+        return hook
+
+    def remove(self) -> None:
+        for handle in self.handles:
+            handle.remove()
+
+
 def relative_sq_error(pred: torch.Tensor, target: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
     weight = mask.unsqueeze(-1).float()
     den = ((target.float() ** 2) * weight).sum()
@@ -245,6 +266,14 @@ def main() -> int:
     parser.add_argument("--feature-weight", type=float, default=1.0)
     parser.add_argument("--duration-weight", type=float, default=0.1)
     parser.add_argument("--weight-decay", type=float, default=0.01)
+    parser.add_argument("--optimizer", choices=["adamw", "muon"], default="adamw")
+    parser.add_argument(
+        "--hidden-weight",
+        type=float,
+        default=0.0,
+        help="Weight of the per-block hidden-state loss (student block i vs teacher block --layer-map[i]).",
+    )
+    parser.add_argument("--layer-map", type=int, nargs="+", default=None)
     parser.add_argument("--warmup", type=int, default=500)
     parser.add_argument("--min-lr-scale", type=float, default=0.1)
     parser.add_argument("--num-val", type=int, default=64)
@@ -288,13 +317,28 @@ def main() -> int:
         param.requires_grad_(group is not None)
         if group is not None:
             groups[group].append(param)
-    base_lrs = {"dit": args.lr, "text": args.text_lr}
-    optimizer = torch.optim.AdamW(
-        [{"params": params, "lr": base_lrs[name], "name": name} for name, params in groups.items() if params],
-        betas=(0.9, 0.95),
-        weight_decay=args.weight_decay,
-    )
+    if args.optimizer == "muon":
+        optimizer = build_optimizer(
+            student,
+            TrainConfig(
+                optimizer="muon",
+                learning_rate=args.lr,
+                pretrained_text_encoder_learning_rate=args.text_lr,
+                weight_decay=args.weight_decay,
+            ),
+        )
+    else:
+        base = {"dit": args.lr, "text": args.text_lr}
+        optimizer = torch.optim.AdamW(
+            [{"params": params, "lr": base[name]} for name, params in groups.items() if params],
+            betas=(0.9, 0.95),
+            weight_decay=args.weight_decay,
+        )
+    for group in optimizer.param_groups:
+        group["base_lr"] = group["lr"]
     params = [p for params in groups.values() for p in params]
+    if args.hidden_weight > 0 and (args.layer_map is None or len(args.layer_map) != len(student.blocks)):
+        parser.error("--hidden-weight needs --layer-map with one teacher block per student block")
     tokenizer = PretrainedTextTokenizer.from_pretrained(
         repo_id=str(teacher_ckpt.tokenizer_dir), add_bos=True, local_files_only=True
     )
@@ -343,7 +387,7 @@ def main() -> int:
     for step in range(args.steps):
         scale = lr_scale(step, args.warmup, args.steps, args.min_lr_scale)
         for group in optimizer.param_groups:
-            group["lr"] = base_lrs[group["name"]] * scale
+            group["lr"] = group["base_lr"] * scale
         on_policy = step >= args.onpolicy_start and rng.random() < args.onpolicy_prob
         items = sampler.sample(args.batch_size)
         with torch.autocast("cuda", dtype=torch.bfloat16):
@@ -381,17 +425,36 @@ def main() -> int:
         frames = [cond_enc.frames[i] for i in item_index.tolist()]
         order = torch.tensor(sorted(range(total), key=lambda i: frames[i]), device=device)
         u_loss = torch.zeros((), device=device)
+        hidden_loss = torch.zeros((), device=device)
         for index in order.chunk(args.micro_batches):
             sub = cond_enc.select(item_index[index])  # a fresh graph per chunk from the leaves
             length = max(sub.frames)
             sub.latent_mask = sub.latent_mask[:, :length]
+            x_t, t, delta = targets.x_t[index, :length], targets.t[index], targets.delta[index]
+            weight = len(index) / total
+            if args.hidden_weight > 0:
+                teacher_sub = teacher_enc.select(item_index[index])
+                teacher_sub.latent_mask = sub.latent_mask
+                teacher_hidden = BlockOutputs(teacher, sorted(set(args.layer_map)))
+                with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16):
+                    model_output(teacher, teacher_sub, x_t, t, delta)
+                teacher_hidden.remove()
+                student_hidden = BlockOutputs(student, list(range(len(student.blocks))))
             with torch.autocast("cuda", dtype=torch.bfloat16):
-                pred = model_output(
-                    student, sub, targets.x_t[index, :length], targets.t[index], targets.delta[index]
-                )
-            chunk_loss = masked_utterance_mse(pred, targets.u[index, :length], sub.latent_mask) * (len(index) / total)
+                pred = model_output(student, sub, x_t, t, delta)
+            chunk_loss = masked_utterance_mse(pred, targets.u[index, :length], sub.latent_mask) * weight
             u_loss += chunk_loss.detach()
+            if args.hidden_weight > 0:
+                student_hidden.remove()
+                chunk_hidden = sum(
+                    relative_sq_error(student_hidden.outputs[i], teacher_hidden.outputs[j], sub.latent_mask)
+                    for i, j in enumerate(args.layer_map)
+                ) / len(args.layer_map)
+                hidden_loss += chunk_hidden.detach() * weight
+                chunk_loss = chunk_loss + args.hidden_weight * chunk_hidden * weight
             chunk_loss.backward()
+        if args.hidden_weight > 0:
+            losses["hidden"] = hidden_loss
         if args.train_text:
             text_loss = torch.zeros((), device=device)
             for name, value in text_path_losses(student_enc, teacher_enc).items():
