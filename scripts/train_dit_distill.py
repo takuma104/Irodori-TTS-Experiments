@@ -25,7 +25,10 @@ What is trained:
 - ``--train-text`` (Phase 1b with ``--no-train-dit``, Phase 3a with both): the
   student's text path as well. The student then encodes the items itself (with
   the teacher's latent lengths), and the loss adds the relative error of its
-  text/caption states and its duration prediction against the teacher's.
+  text/caption states and its duration prediction against the teacher's;
+- ``--student-conditions`` (Phase 3 with a frozen text student): only the DiT
+  trains, conditioned on the student's own encoders, so it adapts to the
+  student text representation while the targets stay the teacher's.
 
 Every saved ``model.safetensors`` is a complete drop-in checkpoint.
 """
@@ -261,6 +264,12 @@ def main() -> int:
     parser.add_argument("--onpolicy-start", type=int, default=0)
     parser.add_argument("--train-dit", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--train-text", action="store_true")
+    parser.add_argument(
+        "--student-conditions",
+        action="store_true",
+        help="Condition the student on its own (frozen) encoders, e.g. a merged text student "
+        "(Phase 3); implied by --train-text.",
+    )
     parser.add_argument("--lr", type=float, default=1e-4, help="DiT learning rate.")
     parser.add_argument("--text-lr", type=float, default=3e-5)
     parser.add_argument("--feature-weight", type=float, default=1.0)
@@ -377,7 +386,7 @@ def main() -> int:
         )
 
     def run_eval() -> dict[str, float]:
-        return evaluate(teacher, student, tokenizer, val_batches, args.train_text)
+        return evaluate(teacher, student, tokenizer, val_batches, args.train_text or args.student_conditions)
 
     log({"step": 0, **run_eval()})
     generator = torch.Generator(device="cuda").manual_seed(args.seed)
@@ -393,9 +402,9 @@ def main() -> int:
         with torch.autocast("cuda", dtype=torch.bfloat16):
             teacher_enc = encode_batch(teacher, tokenizer, items, device=device)
             student_enc = teacher_enc
-            if args.train_text:
+            if args.train_text or args.student_conditions:
                 student_enc = encode_batch(
-                    student, tokenizer, items, device=device, frames=teacher_enc.frames, grad=True
+                    student, tokenizer, items, device=device, frames=teacher_enc.frames, grad=args.train_text
                 )
             x_1 = initial_noise(teacher_enc, teacher.cfg.patched_latent_dim, generator, torch.float32)
             targets = teacher_targets(
