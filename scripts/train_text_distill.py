@@ -43,6 +43,7 @@ from irodori_tts.duration import build_duration_features
 from irodori_tts.model import PretrainedConditionProjector, TextToLatentRFDiT
 from irodori_tts.text_normalization import normalize_text
 from irodori_tts.tokenizer import PretrainedTextTokenizer
+from voice_captions import voice_captions
 
 MAX_TEXT_LEN = 256
 
@@ -143,9 +144,12 @@ def evaluate(
     tokenizer: PretrainedTextTokenizer,
     texts: list[str],
     batch_size: int,
+    captions: list[str],
 ) -> dict[str, float]:
+    """Relative errors on corpus sentences (both projectors) and on voice captions (caption path)."""
     student.eval()
-    sums = {"text_num": 0.0, "text_den": 0.0, "caption_num": 0.0, "caption_den": 0.0, "dur_abs": 0.0}
+    sums = {"text_num": 0.0, "text_den": 0.0, "caption_num": 0.0, "caption_den": 0.0, "dur_abs": 0.0,
+            "vc_num": 0.0, "vc_den": 0.0}
     for start in range(0, len(texts), batch_size):
         chunk = texts[start : start + batch_size]
         ids, mask = encode(tokenizer, chunk, "cuda")
@@ -159,12 +163,22 @@ def evaluate(
         t_dur = duration_log_frames(teacher, t_text, mask, chunk)
         s_dur = duration_log_frames(teacher, s_text, mask, chunk)
         sums["dur_abs"] += float((s_dur - t_dur).abs().sum())
+    for start in range(0, len(captions), batch_size):
+        ids, mask = encode(tokenizer, captions[start : start + batch_size], "cuda")
+        _, t_caption = condition_states(teacher, ids, mask)
+        _, s_caption = condition_states(student, ids, mask)
+        weight = mask.unsqueeze(-1).float()
+        sums["vc_num"] += float((((s_caption - t_caption) ** 2) * weight).sum())
+        sums["vc_den"] += float(((t_caption**2) * weight).sum())
     set_train_mode(student)
-    return {
+    result = {
         "text_rel_err": math.sqrt(sums["text_num"] / sums["text_den"]),
         "caption_rel_err": math.sqrt(sums["caption_num"] / sums["caption_den"]),
         "duration_abs_log_err": sums["dur_abs"] / len(texts),
     }
+    if captions:
+        result["voice_caption_rel_err"] = math.sqrt(sums["vc_num"] / sums["vc_den"])
+    return result
 
 
 def main() -> int:
@@ -183,6 +197,13 @@ def main() -> int:
     parser.add_argument("--warmup", type=int, default=500)
     parser.add_argument("--min-lr-scale", type=float, default=0.05)
     parser.add_argument("--caption-weight", type=float, default=1.0)
+    parser.add_argument(
+        "--caption-batch-size",
+        type=int,
+        default=0,
+        help="Voice captions per step for the caption path (voice_captions.py); 0 disables.",
+    )
+    parser.add_argument("--num-captions", type=int, default=20000)
     parser.add_argument("--cosine-weight", type=float, default=0.1)
     parser.add_argument("--duration-weight", type=float, default=0.1)
     parser.add_argument("--log-every", type=int, default=100)
@@ -221,6 +242,10 @@ def main() -> int:
 
     train_texts = read_lines(args.train_corpus)
     val_texts = read_lines([args.val_corpus])[: args.num_val]
+    all_captions = voice_captions(args.num_captions, seed=12345)
+    val_captions = all_captions[:500]  # the same held-out captions for every run
+    train_captions = all_captions[500:]
+    caption_batches = batches(train_captions, args.caption_batch_size, args.seed) if args.caption_batch_size else None
     args.output_dir.mkdir(parents=True, exist_ok=True)
     log_path = args.output_dir / "train_log.jsonl"
     (args.output_dir / "train_args.json").write_text(
@@ -233,7 +258,7 @@ def main() -> int:
         with log_path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(record) + "\n")
 
-    log({"step": 0, **evaluate(teacher, student, tokenizer, val_texts, 256)})
+    log({"step": 0, **evaluate(teacher, student, tokenizer, val_texts, 256, val_captions)})
     start = time.perf_counter()
     running: dict[str, float] = {}
     for step, texts in enumerate(batches(train_texts, args.batch_size, args.seed)):
@@ -260,6 +285,17 @@ def main() -> int:
             + args.cosine_weight * losses["cosine"]
             + args.duration_weight * losses["duration"]
         )
+        if caption_batches is not None:
+            caption_texts = next(caption_batches)
+            c_ids, c_mask = encode(tokenizer, caption_texts, "cuda")
+            with torch.no_grad():
+                _, t_voice = condition_states(teacher, c_ids, c_mask)
+            with torch.autocast("cuda", dtype=torch.bfloat16):
+                _, s_voice = condition_states(student, c_ids, c_mask)
+            losses["voice_caption"] = relative_sq_error(s_voice, t_voice, c_mask)
+            loss = loss + args.caption_weight * (
+                losses["voice_caption"] + args.cosine_weight * cosine_loss(s_voice, t_voice, c_mask)
+            )
         loss.backward()
         grad_norm = torch.nn.utils.clip_grad_norm_([p for g in optimizer.param_groups for p in g["params"]], 1.0)
         optimizer.step()
@@ -279,7 +315,7 @@ def main() -> int:
             )
             running = {}
         if (step + 1) % args.eval_every == 0 or step + 1 == args.steps:
-            log({"step": step + 1, **evaluate(teacher, student, tokenizer, val_texts, 256)})
+            log({"step": step + 1, **evaluate(teacher, student, tokenizer, val_texts, 256, val_captions)})
 
     save_checkpoint(
         student,

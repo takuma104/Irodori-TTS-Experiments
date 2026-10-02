@@ -228,3 +228,4 @@ outputs/**/run.log
 outputs/**/*.safetensors
 outputs/**/*.pt
 outputs/**/tokenizer/
+outputs/.gpu_slots/
