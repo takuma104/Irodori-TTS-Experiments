@@ -18,7 +18,13 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from distill_lib import TEXT_PATH_PREFIXES, build_model, count_parameters, load_checkpoint, save_checkpoint
+from distill_lib import (
+    TEXT_PATH_PREFIXES,
+    build_model,
+    count_parameters,
+    load_checkpoint,
+    save_checkpoint,
+)
 
 TEXT_CONFIG_KEYS = ("text_tokenizer_repo", "caption_tokenizer_repo", "text_encoder_revision")
 
