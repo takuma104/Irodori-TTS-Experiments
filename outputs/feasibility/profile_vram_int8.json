@@ -1,0 +1,186 @@
+[
+ {
+  "checkpoint": "outputs/students/quant/mf_int8",
+  "model_precision": "bf16",
+  "codec_precision": "fp32",
+  "weights_mib": 1474.8789691925049,
+  "resident_mib": 1426.2900390625,
+  "utterances": {
+   "short": {
+    "audio_seconds": 7.72,
+    "peak_mib": 2502.52001953125,
+    "total_ms": 518.230162000691,
+    "stage_ms": {
+     "tokenize_text": 0.2771910003502853,
+     "prepare_reference": 16.700489999493584,
+     "predict_duration": 24.055827998381574,
+     "sample_meanflow": 82.80066899897065,
+     "unpatchify_latent": 0.00622899824520573,
+     "decode_latent": 372.8180079997401,
+     "silentcipher_watermark": 12.922944995807484
+    },
+    "stage_activation_peak_mib": {
+     "encode_reference": 227.2802734375,
+     "encode_conditions": 20.5703125,
+     "decode_latent": 816.58251953125
+    }
+   },
+   "30s": {
+    "audio_seconds": 30.0,
+    "peak_mib": 4853.84619140625,
+    "total_ms": 886.2049620001926,
+    "stage_ms": {
+     "tokenize_text": 0.33752799936337397,
+     "prepare_reference": 137.82204099697992,
+     "sample_meanflow": 129.32599899795605,
+     "unpatchify_latent": 0.006741000106558204,
+     "decode_latent": 489.28117800096516,
+     "silentcipher_watermark": 121.02176399639575
+    },
+    "stage_activation_peak_mib": {
+     "encode_reference": 227.5302734375,
+     "encode_conditions": 20.28515625,
+     "decode_latent": 3168.45556640625
+    }
+   }
+  }
+ },
+ {
+  "checkpoint": "outputs/students/quant/mf_int8",
+  "model_precision": "bf16",
+  "codec_precision": "bf16",
+  "weights_mib": 1474.8789691925049,
+  "resident_mib": 1171.24365234375,
+  "utterances": {
+   "short": {
+    "audio_seconds": 7.88,
+    "peak_mib": 1992.77197265625,
+    "total_ms": 482.7209490031237,
+    "stage_ms": {
+     "tokenize_text": 0.3057060021092184,
+     "prepare_reference": 145.34731000458123,
+     "predict_duration": 40.550354999140836,
+     "sample_meanflow": 89.3597710019094,
+     "unpatchify_latent": 0.006708003638777882,
+     "decode_latent": 177.72012000204995,
+     "silentcipher_watermark": 28.931667999131605
+    },
+    "stage_activation_peak_mib": {
+     "encode_reference": 113.3046875,
+     "encode_conditions": 19.78515625,
+     "decode_latent": 417.6708984375
+    }
+   },
+   "30s": {
+    "audio_seconds": 30.0,
+    "peak_mib": 3921.90625,
+    "total_ms": 897.9603279949515,
+    "stage_ms": {
+     "tokenize_text": 0.3790359987760894,
+     "prepare_reference": 137.57263900333783,
+     "sample_meanflow": 110.76165600388777,
+     "unpatchify_latent": 0.006476002454292029,
+     "decode_latent": 526.3306269989698,
+     "silentcipher_watermark": 114.08103099529399
+    },
+    "stage_activation_peak_mib": {
+     "encode_reference": 113.3046875,
+     "encode_conditions": 19.78515625,
+     "decode_latent": 1585.5322265625
+    }
+   }
+  }
+ },
+ {
+  "checkpoint": "outputs/students/quant/ta_int8",
+  "model_precision": "bf16",
+  "codec_precision": "fp32",
+  "weights_mib": 1240.8408832550049,
+  "resident_mib": 1306.72216796875,
+  "utterances": {
+   "short": {
+    "audio_seconds": 7.72,
+    "peak_mib": 2373.4208984375,
+    "total_ms": 562.3337630022434,
+    "stage_ms": {
+     "tokenize_text": 0.29378799808910117,
+     "prepare_reference": 126.51043900405057,
+     "predict_duration": 30.049589004192967,
+     "sample_meanflow": 77.40553899930092,
+     "unpatchify_latent": 0.0063639963627792895,
+     "decode_latent": 281.4588850014843,
+     "silentcipher_watermark": 45.52261500066379
+    },
+    "stage_activation_peak_mib": {
+     "encode_reference": 227.2802734375,
+     "encode_conditions": 21.78515625,
+     "decode_latent": 816.83642578125
+    }
+   },
+   "30s": {
+    "audio_seconds": 30.0,
+    "peak_mib": 4723.9423828125,
+    "total_ms": 852.4718519984162,
+    "stage_ms": {
+     "tokenize_text": 0.4036719983560033,
+     "prepare_reference": 127.89941800292581,
+     "sample_meanflow": 121.38247099937871,
+     "unpatchify_latent": 0.006499998562503606,
+     "decode_latent": 507.1111360011855,
+     "silentcipher_watermark": 90.5350089960848
+    },
+    "stage_activation_peak_mib": {
+     "encode_reference": 227.7802734375,
+     "encode_conditions": 20.53515625,
+     "decode_latent": 3168.68994140625
+    }
+   }
+  }
+ },
+ {
+  "checkpoint": "outputs/students/quant/ta_int8",
+  "model_precision": "bf16",
+  "codec_precision": "bf16",
+  "weights_mib": 1240.8408832550049,
+  "resident_mib": 1048.5830078125,
+  "utterances": {
+   "short": {
+    "audio_seconds": 7.96,
+    "peak_mib": 1879.02685546875,
+    "total_ms": 454.28099400305655,
+    "stage_ms": {
+     "tokenize_text": 0.3049429942620918,
+     "prepare_reference": 136.05091099452693,
+     "predict_duration": 31.646699004340917,
+     "sample_meanflow": 83.05738199851476,
+     "unpatchify_latent": 0.006565998774021864,
+     "decode_latent": 181.79377799970098,
+     "silentcipher_watermark": 20.35301499563502
+    },
+    "stage_activation_peak_mib": {
+     "encode_reference": 113.3046875,
+     "encode_conditions": 19.78515625,
+     "decode_latent": 421.5791015625
+    }
+   },
+   "30s": {
+    "audio_seconds": 30.0,
+    "peak_mib": 3801.2294921875,
+    "total_ms": 891.7257809953298,
+    "stage_ms": {
+     "tokenize_text": 0.4081619990756735,
+     "prepare_reference": 140.85736400011228,
+     "sample_meanflow": 119.11350199807202,
+     "unpatchify_latent": 0.006750997272320092,
+     "decode_latent": 498.4659219990135,
+     "silentcipher_watermark": 124.53473300411133
+    },
+    "stage_activation_peak_mib": {
+     "encode_reference": 113.3046875,
+     "encode_conditions": 20.16015625,
+     "decode_latent": 1586.9833984375
+    }
+   }
+  }
+ }
+]
