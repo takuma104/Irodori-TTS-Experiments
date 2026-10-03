@@ -36,7 +36,12 @@ MIB = 1024**2
 
 
 def checkpoint_path(name: str) -> Path:
-    """Local path of ``model.safetensors`` for ``RF`` or ``MF`` (downloads if missing)."""
+    """``model.safetensors`` for ``RF`` / ``MF`` (downloaded if missing), or a local checkpoint dir/file."""
+    local = Path(name)
+    if local.is_file():
+        return local
+    if (local / "model.safetensors").is_file():
+        return local / "model.safetensors"
     snapshot = snapshot_download(REPOS[name], allow_patterns=["model.safetensors", "tokenizer/*"])
     return Path(snapshot) / "model.safetensors"
 
