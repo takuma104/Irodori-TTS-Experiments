@@ -1,0 +1,462 @@
+[
+ {
+  "checkpoint": "MF",
+  "model_precision": "bf16",
+  "codec_precision": "fp32",
+  "weights_mib": 1474.8789691925049,
+  "resident_mib": 1999.94189453125,
+  "utterances": {
+   "short": {
+    "audio_seconds": 7.72,
+    "peak_mib": 3074.29736328125,
+    "total_ms": 436.34803500026464,
+    "stage_ms": {
+     "tokenize_text": 0.23863800015533343,
+     "prepare_reference": 126.16441700083669,
+     "predict_duration": 31.852392996370327,
+     "sample_meanflow": 76.48959400103195,
+     "unpatchify_latent": 0.006139001925475895,
+     "decode_latent": 188.42988799588056,
+     "silentcipher_watermark": 12.264034005056601
+    },
+    "stage_activation_peak_mib": {
+     "encode_reference": 226.2802734375,
+     "encode_conditions": 16.78515625,
+     "decode_latent": 815.2431640625
+    }
+   },
+   "30s": {
+    "audio_seconds": 30.0,
+    "peak_mib": 5425.771484375,
+    "total_ms": 968.35492199898,
+    "stage_ms": {
+     "tokenize_text": 0.3531260008458048,
+     "prepare_reference": 104.5258659942192,
+     "sample_meanflow": 124.02660900261253,
+     "unpatchify_latent": 0.006651993317063898,
+     "decode_latent": 654.5243630025652,
+     "silentcipher_watermark": 76.39782399928663
+    },
+    "stage_activation_peak_mib": {
+     "encode_reference": 226.2802734375,
+     "encode_conditions": 16.78515625,
+     "decode_latent": 3167.33056640625
+    }
+   }
+  }
+ },
+ {
+  "checkpoint": "MF",
+  "model_precision": "bf16",
+  "codec_precision": "bf16",
+  "weights_mib": 1474.8789691925049,
+  "resident_mib": 1743.029296875,
+  "utterances": {
+   "short": {
+    "audio_seconds": 7.88,
+    "peak_mib": 2561.32861328125,
+    "total_ms": 582.3142230001395,
+    "stage_ms": {
+     "tokenize_text": 0.3164650042890571,
+     "prepare_reference": 158.0177130017546,
+     "predict_duration": 29.95944099529879,
+     "sample_meanflow": 76.46727099927375,
+     "unpatchify_latent": 0.006645001121796668,
+     "decode_latent": 260.9045720018912,
+     "silentcipher_watermark": 48.04806099855341
+    },
+    "stage_activation_peak_mib": {
+     "encode_reference": 113.3046875,
+     "encode_conditions": 16.78515625,
+     "decode_latent": 416.0673828125
+    }
+   },
+   "30s": {
+    "audio_seconds": 30.0,
+    "peak_mib": 4488.6279296875,
+    "total_ms": 960.2490430042963,
+    "stage_ms": {
+     "tokenize_text": 0.3915760025847703,
+     "prepare_reference": 143.2100719976006,
+     "sample_meanflow": 118.4327070004656,
+     "unpatchify_latent": 0.006176996976137161,
+     "decode_latent": 631.4594509967719,
+     "silentcipher_watermark": 65.24097099463688
+    },
+    "stage_activation_peak_mib": {
+     "encode_reference": 113.3046875,
+     "encode_conditions": 16.78515625,
+     "decode_latent": 1583.66552734375
+    }
+   }
+  }
+ },
+ {
+  "checkpoint": "outputs/students/text_prune310/p1a",
+  "model_precision": "bf16",
+  "codec_precision": "fp32",
+  "weights_mib": 1240.8408832550049,
+  "resident_mib": 1765.90380859375,
+  "utterances": {
+   "short": {
+    "audio_seconds": 7.72,
+    "peak_mib": 2831.13427734375,
+    "total_ms": 527.446128995507,
+    "stage_ms": {
+     "tokenize_text": 0.3416519975871779,
+     "prepare_reference": 135.1197650001268,
+     "predict_duration": 11.123008000140544,
+     "sample_meanflow": 57.41896299878135,
+     "unpatchify_latent": 0.006793001375626773,
+     "decode_latent": 273.69481600180734,
+     "silentcipher_watermark": 45.488088006095495
+    },
+    "stage_activation_peak_mib": {
+     "encode_reference": 226.2802734375,
+     "encode_conditions": 16.78515625,
+     "decode_latent": 815.2431640625
+    }
+   },
+   "30s": {
+    "audio_seconds": 30.0,
+    "peak_mib": 5182.6083984375,
+    "total_ms": 864.8113140006899,
+    "stage_ms": {
+     "tokenize_text": 0.4083439998794347,
+     "prepare_reference": 119.2746939996141,
+     "sample_meanflow": 109.0020099945832,
+     "unpatchify_latent": 0.006634996680077165,
+     "decode_latent": 527.2766220004996,
+     "silentcipher_watermark": 104.42246099410113
+    },
+    "stage_activation_peak_mib": {
+     "encode_reference": 226.2802734375,
+     "encode_conditions": 16.78515625,
+     "decode_latent": 3167.33056640625
+    }
+   }
+  }
+ },
+ {
+  "checkpoint": "outputs/students/text_prune310/p1a",
+  "model_precision": "bf16",
+  "codec_precision": "bf16",
+  "weights_mib": 1240.8408832550049,
+  "resident_mib": 1508.9912109375,
+  "utterances": {
+   "short": {
+    "audio_seconds": 7.96,
+    "peak_mib": 2335.3837890625,
+    "total_ms": 446.01644800422946,
+    "stage_ms": {
+     "tokenize_text": 0.32381500204792246,
+     "prepare_reference": 142.2001899991301,
+     "predict_duration": 30.020763995707966,
+     "sample_meanflow": 68.50407800084213,
+     "unpatchify_latent": 0.007080001523718238,
+     "decode_latent": 187.35909800307127,
+     "silentcipher_watermark": 17.057385994121432
+    },
+    "stage_activation_peak_mib": {
+     "encode_reference": 113.3046875,
+     "encode_conditions": 16.78515625,
+     "decode_latent": 420.2900390625
+    }
+   },
+   "30s": {
+    "audio_seconds": 30.0,
+    "peak_mib": 4254.58984375,
+    "total_ms": 676.7342849998386,
+    "stage_ms": {
+     "tokenize_text": 0.4260079949744977,
+     "prepare_reference": 64.07573799515376,
+     "sample_meanflow": 103.69209600321483,
+     "unpatchify_latent": 0.007180002285167575,
+     "decode_latent": 392.30616499844473,
+     "silentcipher_watermark": 107.07770000590244
+    },
+    "stage_activation_peak_mib": {
+     "encode_reference": 113.3046875,
+     "encode_conditions": 16.78515625,
+     "decode_latent": 1583.66552734375
+    }
+   }
+  }
+ },
+ {
+  "checkpoint": "outputs/students/text_mbert130m/p1c",
+  "model_precision": "bf16",
+  "codec_precision": "fp32",
+  "weights_mib": 1125.3413715362549,
+  "resident_mib": 1650.404296875,
+  "utterances": {
+   "short": {
+    "audio_seconds": 7.64,
+    "peak_mib": 2707.18798828125,
+    "total_ms": 460.4372690009768,
+    "stage_ms": {
+     "tokenize_text": 0.30584300111513585,
+     "prepare_reference": 137.0262359996559,
+     "predict_duration": 30.679078001412563,
+     "sample_meanflow": 69.34095599717693,
+     "unpatchify_latent": 0.006538997695315629,
+     "decode_latent": 209.1780269984156,
+     "silentcipher_watermark": 12.660293999942951
+    },
+    "stage_activation_peak_mib": {
+     "encode_reference": 226.2802734375,
+     "encode_conditions": 11.53515625,
+     "decode_latent": 806.79736328125
+    }
+   },
+   "30s": {
+    "audio_seconds": 30.0,
+    "peak_mib": 5067.10888671875,
+    "total_ms": 772.339256000123,
+    "stage_ms": {
+     "tokenize_text": 0.4327869974076748,
+     "prepare_reference": 124.48342300194781,
+     "sample_meanflow": 112.85335999855306,
+     "unpatchify_latent": 0.006367001333273947,
+     "decode_latent": 425.18798600212904,
+     "silentcipher_watermark": 108.85925099864835
+    },
+    "stage_activation_peak_mib": {
+     "encode_reference": 226.2802734375,
+     "encode_conditions": 11.53515625,
+     "decode_latent": 3167.33056640625
+    }
+   }
+  }
+ },
+ {
+  "checkpoint": "outputs/students/text_mbert130m/p1c",
+  "model_precision": "bf16",
+  "codec_precision": "bf16",
+  "weights_mib": 1125.3413715362549,
+  "resident_mib": 1393.49169921875,
+  "utterances": {
+   "short": {
+    "audio_seconds": 7.88,
+    "peak_mib": 2211.791015625,
+    "total_ms": 609.0900089984643,
+    "stage_ms": {
+     "tokenize_text": 0.3209119968232699,
+     "prepare_reference": 139.0529249983956,
+     "predict_duration": 29.819093004334718,
+     "sample_meanflow": 69.22332300018752,
+     "unpatchify_latent": 0.0060730017139576375,
+     "decode_latent": 321.37270299426746,
+     "silentcipher_watermark": 48.15921000408707
+    },
+    "stage_activation_peak_mib": {
+     "encode_reference": 113.3046875,
+     "encode_conditions": 11.53515625,
+     "decode_latent": 416.0673828125
+    }
+   },
+   "30s": {
+    "audio_seconds": 30.0,
+    "peak_mib": 4139.09033203125,
+    "total_ms": 724.7580429975642,
+    "stage_ms": {
+     "tokenize_text": 0.4431929992279038,
+     "prepare_reference": 130.422501002613,
+     "sample_meanflow": 106.46406299929367,
+     "unpatchify_latent": 0.006381000275723636,
+     "decode_latent": 362.6784139996744,
+     "silentcipher_watermark": 116.42275600024732
+    },
+    "stage_activation_peak_mib": {
+     "encode_reference": 113.3046875,
+     "encode_conditions": 11.53515625,
+     "decode_latent": 1583.66552734375
+    }
+   }
+  }
+ },
+ {
+  "checkpoint": "outputs/students/merged_a_d9/raw",
+  "model_precision": "bf16",
+  "codec_precision": "fp32",
+  "weights_mib": 1069.9229145050049,
+  "resident_mib": 1594.98583984375,
+  "utterances": {
+   "short": {
+    "audio_seconds": 7.72,
+    "peak_mib": 2660.21630859375,
+    "total_ms": 474.7668519994477,
+    "stage_ms": {
+     "tokenize_text": 0.3374579973751679,
+     "prepare_reference": 18.74599399889121,
+     "predict_duration": 10.676371995941736,
+     "sample_meanflow": 51.162408002710436,
+     "unpatchify_latent": 0.00600700150243938,
+     "decode_latent": 339.6098989978782,
+     "silentcipher_watermark": 45.651577005628496
+    },
+    "stage_activation_peak_mib": {
+     "encode_reference": 226.2802734375,
+     "encode_conditions": 16.78515625,
+     "decode_latent": 815.2431640625
+    }
+   },
+   "30s": {
+    "audio_seconds": 30.0,
+    "peak_mib": 5011.6904296875,
+    "total_ms": 787.261090001266,
+    "stage_ms": {
+     "tokenize_text": 0.45322599908104166,
+     "prepare_reference": 117.84649200126296,
+     "sample_meanflow": 89.25099699990824,
+     "unpatchify_latent": 0.006433998350985348,
+     "decode_latent": 461.90501599630807,
+     "silentcipher_watermark": 109.54240200226195
+    },
+    "stage_activation_peak_mib": {
+     "encode_reference": 226.2802734375,
+     "encode_conditions": 16.78515625,
+     "decode_latent": 3167.33056640625
+    }
+   }
+  }
+ },
+ {
+  "checkpoint": "outputs/students/merged_a_d9/raw",
+  "model_precision": "bf16",
+  "codec_precision": "bf16",
+  "weights_mib": 1069.9229145050049,
+  "resident_mib": 1338.0732421875,
+  "utterances": {
+   "short": {
+    "audio_seconds": 7.96,
+    "peak_mib": 2164.4658203125,
+    "total_ms": 562.9406540028867,
+    "stage_ms": {
+     "tokenize_text": 0.31026999931782484,
+     "prepare_reference": 140.8984719964792,
+     "predict_duration": 24.073521999525838,
+     "sample_meanflow": 65.42695600364823,
+     "unpatchify_latent": 0.007094000466167927,
+     "decode_latent": 283.4418919956079,
+     "silentcipher_watermark": 48.25891499785939
+    },
+    "stage_activation_peak_mib": {
+     "encode_reference": 113.3046875,
+     "encode_conditions": 16.78515625,
+     "decode_latent": 420.2900390625
+    }
+   },
+   "30s": {
+    "audio_seconds": 30.0,
+    "peak_mib": 4083.671875,
+    "total_ms": 715.531715999532,
+    "stage_ms": {
+     "tokenize_text": 0.4243639996275306,
+     "prepare_reference": 138.43641099811066,
+     "sample_meanflow": 98.92694000154734,
+     "unpatchify_latent": 0.006585003575310111,
+     "decode_latent": 356.818096995994,
+     "silentcipher_watermark": 115.10191100387601
+    },
+    "stage_activation_peak_mib": {
+     "encode_reference": 113.3046875,
+     "encode_conditions": 16.78515625,
+     "decode_latent": 1583.66552734375
+    }
+   }
+  }
+ },
+ {
+  "checkpoint": "outputs/students/merged_b_d9m/init",
+  "model_precision": "bf16",
+  "codec_precision": "fp32",
+  "weights_mib": 838.4077777862549,
+  "resident_mib": 1363.470703125,
+  "utterances": {
+   "short": {
+    "audio_seconds": 7.64,
+    "peak_mib": 2420.25439453125,
+    "total_ms": 418.4028789968579,
+    "stage_ms": {
+     "tokenize_text": 0.31308300094679,
+     "prepare_reference": 136.15621399367228,
+     "predict_duration": 23.16412799700629,
+     "sample_meanflow": 62.00783199892612,
+     "unpatchify_latent": 0.006214002496562898,
+     "decode_latent": 182.7011190034682,
+     "silentcipher_watermark": 12.960001004103106
+    },
+    "stage_activation_peak_mib": {
+     "encode_reference": 226.2802734375,
+     "encode_conditions": 11.53515625,
+     "decode_latent": 806.79736328125
+    }
+   },
+   "30s": {
+    "audio_seconds": 30.0,
+    "peak_mib": 4780.17529296875,
+    "total_ms": 822.1284489991376,
+    "stage_ms": {
+     "tokenize_text": 0.4918389968224801,
+     "prepare_reference": 129.1220820057788,
+     "sample_meanflow": 76.86718899640255,
+     "unpatchify_latent": 0.006344002031255513,
+     "decode_latent": 495.97083700064104,
+     "silentcipher_watermark": 111.42429500614526
+    },
+    "stage_activation_peak_mib": {
+     "encode_reference": 226.2802734375,
+     "encode_conditions": 11.53515625,
+     "decode_latent": 3167.33056640625
+    }
+   }
+  }
+ },
+ {
+  "checkpoint": "outputs/students/merged_b_d9m/init",
+  "model_precision": "bf16",
+  "codec_precision": "bf16",
+  "weights_mib": 838.4077777862549,
+  "resident_mib": 1106.55810546875,
+  "utterances": {
+   "short": {
+    "audio_seconds": 7.88,
+    "peak_mib": 1924.857421875,
+    "total_ms": 512.7360229962505,
+    "stage_ms": {
+     "tokenize_text": 0.304275999951642,
+     "prepare_reference": 138.50163199822418,
+     "predict_duration": 31.452315997739788,
+     "sample_meanflow": 63.336750004964415,
+     "unpatchify_latent": 0.006661000952590257,
+     "decode_latent": 227.73400499863783,
+     "silentcipher_watermark": 50.26092100160895
+    },
+    "stage_activation_peak_mib": {
+     "encode_reference": 113.3046875,
+     "encode_conditions": 11.53515625,
+     "decode_latent": 416.0673828125
+    }
+   },
+   "30s": {
+    "audio_seconds": 30.0,
+    "peak_mib": 3852.15673828125,
+    "total_ms": 784.3825240051956,
+    "stage_ms": {
+     "tokenize_text": 0.4199859977234155,
+     "prepare_reference": 142.84153199696448,
+     "sample_meanflow": 80.20576900162268,
+     "unpatchify_latent": 0.006457004928961396,
+     "decode_latent": 429.4545040029334,
+     "silentcipher_watermark": 123.10816300305305
+    },
+    "stage_activation_peak_mib": {
+     "encode_reference": 113.3046875,
+     "encode_conditions": 11.53515625,
+     "decode_latent": 1583.66552734375
+    }
+   }
+  }
+ }
+]
