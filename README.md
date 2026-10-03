@@ -20,19 +20,20 @@ differ from the base model card (FP32, no reference, seeds 0–4), so the number
 are not directly comparable to it. Changes are paired per item against the base model
 (fixed / broken counts, exact McNemar test).
 
-| Evaluation | Items | Base | Released checkpoint | Fixed / broken | p |
-|---|---:|---:|---:|---:|---:|
-| Aozora Bunko ruby, held-out works (target reading accuracy) | 3,000 | 62.50% | **63.30%** | 68 / 44 | 0.029 |
-| Wikipedia sentences, held-out words (target reading accuracy) | 6,403 | 84.04% | **84.37%** | 83 / 62 | 0.096 |
-| JSUT BASIC5000, not used in training (sentence kana CER, lower is better) | 2,236 | 1.881% | **1.799%** | 134 / 103 sentences | – |
-| JVS general sentences, not used in training (Whisper CER, lower is better) | 500 | 5.625% | 5.650% | 12 / 13 sentences | – |
-| JKYB-Parakeet, accuracy (external; see the caveat below) | 13,536 | 94.04% | **95.06%** | 210 / 72 | 8e-17 |
-| JKYB-Parakeet, on'yomi / kun'yomi / appendix readings | | 92.98 / 95.87 / 83.87% | 94.47 / 96.27 / 86.29% | | |
+| Evaluation | Items | Base | v1 (S10) | **v2 (S12)** | v2 fixed / broken | v2 p |
+|---|---:|---:|---:|---:|---:|---:|
+| Aozora Bunko ruby, held-out works (target reading accuracy) | 3,000 | 62.50% | 63.30% | **65.80%** | 150 / 51 | 2e-12 |
+| Wikipedia sentences, held-out words (target reading accuracy) | 6,403 | 84.04% | 84.37% | **85.12%** | 134 / 65 | 1e-6 |
+| JSUT BASIC5000, not used in training (sentence kana CER, lower is better) | 2,236 | 1.881% | 1.799% | **1.778%** | 152 / 115 sentences | – |
+| JVS general sentences, not used in training (Whisper CER, lower is better) | 500 | **5.625%** | 5.650% | 5.683% | 13 / 18 sentences | – |
+| JKYB-Parakeet, accuracy (external; see the caveat below) | 13,536 | 94.04% | 95.06% | **95.46%** | 277 / 84 | 3e-25 |
+| JKYB-Parakeet, on'yomi / kun'yomi / appendix readings | | 92.98 / 95.87 / 83.87% | 94.47 / 96.27 / 86.29% | 94.97 / 96.45 / 88.71% | | |
 
-The released checkpoint is S10 merged into the base checkpoint (see
-[Exporting](#exporting-a-checkpoint)). Before the export, S10 itself scored 63.40%,
-84.55% and 95.05% on the three reading sets. Precision alone moves these numbers by a few
-tenths of a point.
+The released checkpoints are students merged into the base checkpoint (see
+[Exporting](#exporting-a-checkpoint)); the numbers are for the exported files. Before the
+export, S12 itself scored 65.87%, 85.09% and 95.42% on the three reading sets; precision
+alone moves these numbers by a few tenths of a point. The JVS differences are mostly
+orthographic variants in the Whisper transcripts (時 / とき, 全て / すべて).
 
 - Words that appear in the training data are fixed in new contexts. Words that never
   appear in training improve only a little.
@@ -44,8 +45,8 @@ tenths of a point.
   - They held out half of the benchmark's target words (group B) from training.
   - Their settings were chosen by JKYB results.
 
-  Group A (words allowed in training) gained +1.19pt. Group B (words held out until S8;
-  the production data no longer excludes them) gained +0.85pt. Read the JKYB numbers as
+  For v2, group A (words allowed in training) gained +1.65pt. Group B (words held out until S8;
+  the production data no longer excludes them) gained +1.20pt. Read the JKYB numbers as
   partly in-domain. The production stages (S9, S10) use no JKYB data and were judged
   only by the other evaluations.
 
@@ -71,6 +72,9 @@ turns this into supervision for the kanji sentence:
 5. **Preservation losses.** The student's text states must stay close to the original
    encoder's in two places: on the tokens outside the target word, and on general
    Wikipedia sentences. Without these losses, words that were not trained regressed.
+6. **Target-window weighting** (from S11). The velocity loss weights the frames around the
+   target 5×. The target's position in the reading is mapped proportionally onto the
+   latent frames, with a 10% margin on both sides.
 
 No recorded speech is needed. All audio latents come from the base model itself,
 conditioned on JVS reference voices.
@@ -78,10 +82,10 @@ conditioned on JVS reference voices.
 Irodori-TTS v4.1 runs the reading text and the voice-design caption through one
 shared ModernBERT, with separate projectors. When the student is merged into a stock
 checkpoint, the caption path sees the updated layers too. Without any change, the caption
-states moved by 21% (relative L2 per token). The caption projector is therefore refit to
+states moved by 21–24% (relative L2 per token). The caption projector is therefore refit to
 the new backbone, by matching states on 5.6k LLM-written captions and Wikipedia sentences.
-This brings the shift down to 6.5%, and in caption-only synthesis the median pitch stays
-within about half a semitone of the base model ([Exporting](#exporting-a-checkpoint)).
+This brings the shift down to 6.5–7.4%, and in caption-only synthesis the median pitch
+stays within about half a semitone of the base model ([Exporting](#exporting-a-checkpoint)).
 
 ## Data
 
@@ -138,12 +142,25 @@ with cosine decay. Each run continues from the previous one, except where marked
 | S7 | same | 12k (33k) | 94.64% | |
 | S8 | + kun | 12k (45k) | 94.88% | |
 | S9 | + Wikipedia + Aozora | 15k (60k) | 95.08% | new data barely fit; JKYB-free evals flat |
-| **S10** | same, new data 2× | 30k (90k) | 95.05% | released; Aozora +0.90pt, Wikipedia +0.52pt |
+| S10 | same, new data 2× | 30k (90k) | 95.05% | released as v1; Aozora 63.40%, Wikipedia 84.55% |
+| S11 | same, target window weighted 5× | 30k (120k) | 95.32% | Aozora 65.00%, Wikipedia 84.91% |
+| **S12** | same | 30k (150k) | 95.42% | released as v2; Aozora 65.87%, Wikipedia 85.09% |
 
-The new corpus sentences fit much more slowly than the LLM-generated ones at a similar
-number of exposures. After S10, the hard training rows of Wikipedia and Aozora are
-read correctly 30% and 18% of the time, against 66% for M3. Longer sentences and rare
-kanji explain only part of this ([`docs/reports/yomi_production.md`](docs/reports/yomi_production.md)).
+After S10, the hard training rows of Wikipedia and Aozora were read correctly only 30% and
+18% of the time, against 66% for M3. A diagnosis (`run_diag_fit.sh`) looked into this. It
+trained from the base model on hard rows only, with the same number of passes over each
+data set:
+- Wikipedia rows fit as fast as M3 rows (about 35% each). Aozora rows were harder (19%).
+- The S10 gap came mostly from fewer passes over the new data, and from the velocity loss
+  being averaged over all frames, which dilutes the target in long sentences.
+- Weighting the frames around the target 5× (`--window-weight 5`) worked best: +14pt
+  (Wikipedia) and +9pt (Aozora) at equal passes. Training the top 8 layers came second
+  (+11 / +8), and weaker preservation losses helped least (+5 / +3).
+
+With the weighting, after S12, the hard rows are read correctly 56% (Wikipedia), 42%
+(Aozora) and 81% (M3) of the time. Words that never appear in training still do not
+improve (Aozora unseen words: 55.0% → 54.5%). Details:
+[`docs/reports/yomi_production.md`](docs/reports/yomi_production.md).
 
 ## Repository layout
 
@@ -167,8 +184,8 @@ Main scripts:
 | Teacher | `generate_teacher_latents.py` (kanji/kana), `mix_teacher_by_difficulty.py` (hard mining) |
 | Training | `train_kana_distill.py`, `student_text.py` |
 | Evaluation | `generate_jkyb_audio.py` (batched synthesis), `compare_jkyb_runs.py`, `analyze_jkyb_errors.py`, `eval_general_cer.py`, `make_aozora_ruby_eval.py` |
-| Export | `generate_captions.py`, `refit_caption_projector.py`, `export_student_checkpoint.py`, `check_exported_checkpoint.py`, `caption_drift_listen.py`, `run_export_eval.sh` |
-| Pipelines | `run_yomi_data.sh <name>` (rows → hard mining → kana teacher → mix), `run_prod.sh`, `run_prod_s10.sh`, `run_student_eval.sh` |
+| Export | `run_release.sh`, `generate_captions.py`, `refit_caption_projector.py`, `export_student_checkpoint.py`, `check_exported_checkpoint.py`, `caption_drift_listen.py`, `run_export_eval.sh` |
+| Pipelines | `run_yomi_data.sh <name>` (rows → hard mining → kana teacher → mix), `run_prod.sh`, `run_prod_s10.sh`, `run_prod_s11.sh`, `run_prod_cont.sh`, `run_diag_fit.sh`, `run_student_eval.sh` |
 
 ## Setup
 
@@ -202,17 +219,19 @@ time.
 ## Exporting a checkpoint
 
 ```bash
-uv run python scripts/generate_captions.py --output data/yomi/captions.jsonl   # needs the LLM server
-S=outputs/yomi_prod/s10_cont/part2/student
-PYTHONPATH=Irodori-TTS:scripts uv run --project Irodori-TTS --no-sync python \
-  scripts/refit_caption_projector.py $S --output-dir outputs/yomi_prod/s10_cont/caption_refit
-PYTHONPATH=Irodori-TTS uv run --project Irodori-TTS --no-sync python \
-  scripts/export_student_checkpoint.py $S \
-  --caption outputs/yomi_prod/s10_cont/caption_refit/caption.safetensors \
-  --output-dir ../Irodori-TTS-v4.1-Small-Yomi
-PYTHONPATH=Irodori-TTS:scripts uv run --project Irodori-TTS --no-sync python \
-  scripts/check_exported_checkpoint.py ../Irodori-TTS-v4.1-Small-Yomi/model.safetensors --student $S
+uv run python scripts/generate_captions.py --output data/yomi/captions.jsonl   # once; needs the LLM server
+bash scripts/run_release.sh outputs/yomi_prod/s12_cont/student release_s12 ../Irodori-TTS-v4.1-Small-Yomi
 ```
+
+`run_release.sh` runs the following steps:
+1. Refit the caption projector (`refit_caption_projector.py`).
+2. Merge the student and the refit caption projector into the base checkpoint
+   (`export_student_checkpoint.py --caption`).
+3. Check the exported file (`check_exported_checkpoint.py`).
+4. Write caption-only samples (`caption_drift_listen.py`).
+5. Evaluate the exported file itself (`run_export_eval.sh`).
+
+The intermediate results go to `outputs/release/<name>/`.
 
 `export_student_checkpoint.py` writes the student's weights into the base checkpoint,
 with the same keys, dtype and metadata, and copies the tokenizer.
