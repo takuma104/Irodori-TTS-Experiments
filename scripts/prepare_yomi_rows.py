@@ -122,6 +122,12 @@ def main() -> int:
     parser.add_argument("sentences", type=Path)
     parser.add_argument("--targets", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--key-prefix",
+        default="",
+        help="Prefix for row keys, so that a second dataset for the same words "
+        "(e.g. more sentences) does not reuse the keys of the first.",
+    )
     args = parser.parse_args()
 
     targets = {(t["word"], t["reading"]): t for t in read_jsonl(args.targets)}
@@ -157,7 +163,10 @@ def main() -> int:
             stem_reading_start = yomi.index(before + tagged + after)
             tag_start = stem_reading_start + len(before)
             ident = (sentence["bucket"], sentence["word"], sentence["reading"])
-            key = f"{sentence['bucket']}_{sentence['word']}_{sentence['reading']}_{per_word[ident]}"
+            key = (
+                f"{args.key_prefix}{sentence['bucket']}_{sentence['word']}_"
+                f"{sentence['reading']}_{per_word[ident]}"
+            )
             per_word[ident] += 1
             a, b = word_start + span_start, word_start + span_end
             row = {

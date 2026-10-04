@@ -3,6 +3,9 @@
 #
 #   bash scripts/run_yomi_data.sh <name>     # e.g. m3, kun
 #
+# Environment: LEXICON (homograph readings for the LLM check; default
+# data/yomi/lexicon.jsonl) and KEY_PREFIX (row-key prefix, prepare_yomi_rows.py).
+#
 # 1. Sentences from the local LLM (vLLM is started here and stopped afterwards).
 # 2. The base model on the kanji text of every row: hard mining, and the teacher
 #    latents for easy target rows and contrast rows.
@@ -34,7 +37,8 @@ if [ ! -f "$M/sentences.done" ]; then
     sleep 10
   done
   uv run python scripts/generate_yomi_sentences.py data/yomi/targets_$NAME.jsonl \
-    --output data/yomi/sentences_$NAME.jsonl --concurrency 64 > "$M/logs/sentences.log" 2>&1
+    --output data/yomi/sentences_$NAME.jsonl --concurrency 64 \
+    --lexicon "${LEXICON:-data/yomi/lexicon.jsonl}" > "$M/logs/sentences.log" 2>&1
   pkill -f "vllm_serve/.venv/bin/python .*vllm serve" || true
   while curl -sf localhost:8000/v1/models > /dev/null; do sleep 5; done
   sleep 20
@@ -42,7 +46,8 @@ if [ ! -f "$M/sentences.done" ]; then
 fi
 
 uv run python scripts/prepare_yomi_rows.py data/yomi/sentences_$NAME.jsonl \
-  --targets data/yomi/targets_$NAME.jsonl --output data/yomi/rows_$NAME.jsonl
+  --targets data/yomi/targets_$NAME.jsonl --output data/yomi/rows_$NAME.jsonl \
+  --key-prefix "${KEY_PREFIX:-}"
 
 iro scripts/generate_teacher_latents.py data/yomi/rows_$NAME.jsonl --text-mode kanji \
   --output-dir "$M/base_kanji" > "$M/logs/base_kanji.log" 2>&1

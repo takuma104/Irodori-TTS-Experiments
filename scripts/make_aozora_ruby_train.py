@@ -53,7 +53,21 @@ def main() -> int:
     parser.add_argument("--per-word", type=int, default=4)
     parser.add_argument("--dev-ratio", type=float, default=0.1)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "--exclude-sentences",
+        type=Path,
+        action="append",
+        default=[],
+        help="Sentences files of an earlier run; their sentences are skipped, so "
+        "a larger run adds only new sentences (up to --per-word more per word).",
+    )
     args = parser.parse_args()
+    excluded: set[tuple[str, str]] = set()
+    for path in args.exclude_sentences:
+        with path.open(encoding="utf-8") as handle:
+            for line in handle:
+                row = json.loads(line)
+                excluded.add((row["word"], row["text"]))
 
     lexicon: dict[str, list[dict[str, Any]]] = defaultdict(list)
     with args.lexicon.open(encoding="utf-8") as handle:
@@ -100,6 +114,8 @@ def main() -> int:
                         known |= analyzer_readings(tagger, tokenizer, word)
                         accepted[key] = to_katakana(reading) in known
                     if not accepted[key] or len(sentences[key]) >= args.per_word:
+                        continue
+                    if (word, text) in excluded:
                         continue
                     sentences[key].append(
                         {
