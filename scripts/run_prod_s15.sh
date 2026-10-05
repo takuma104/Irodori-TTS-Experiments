@@ -29,7 +29,7 @@ iro() { PYTHONPATH=Irodori-TTS uv run --project Irodori-TTS --no-sync python "$@
 # 1. Contrast data.
 if [ ! -f "$C/teacher_mixed/manifest.jsonl" ]; then
   uv run python scripts/select_contrast_targets.py --name aozora --name aozora2 --name var \
-    --hits data/yomi/contrast_hits.jsonl --compounds 4 --per-compound 2 --output-name contrast
+    --hits data/yomi/contrast_hits.jsonl --compounds 4 --per-compound 4 --output-name contrast
   uv run python scripts/prepare_yomi_rows.py data/yomi/sentences_contrast.jsonl \
     --targets data/yomi/targets_contrast.jsonl --output data/yomi/rows_contrast.jsonl --key-prefix c
   iro scripts/generate_teacher_latents.py data/yomi/rows_contrast.jsonl --text-mode kanji \
