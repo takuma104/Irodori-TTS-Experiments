@@ -101,15 +101,30 @@ def main() -> int:
     parser.add_argument("--check", type=int, default=16, help="Hits checked per stem.")
     parser.add_argument("--keep", type=int, default=4, help="Sentences kept per word.")
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "--words",
+        type=Path,
+        default=None,
+        help="JSONL of (word, reading) to search for instead of the bucket words "
+        "(e.g. contrast compounds, which are often in no bucket).",
+    )
     args = parser.parse_args()
+    wanted: set[tuple[str, str]] | None = None
+    if args.words is not None:
+        with args.words.open(encoding="utf-8") as handle:
+            wanted = {(r["word"], r["reading"]) for r in map(json.loads, handle) if r}
 
     targets: dict[str, list[dict[str, Any]]] = defaultdict(list)
     with args.lexicon.open(encoding="utf-8") as handle:
         for line in handle:
             row = json.loads(line)
+            if wanted is not None:
+                if (row["word"], row["reading"]) not in wanted:
+                    continue
+            elif not row["buckets"]:
+                continue
             if (
-                not row["buckets"]
-                or len(row["word"]) > 6
+                len(row["word"]) > 6
                 or len(row["reading"]) > 12
                 or SKIP_MISC & set(row["misc"])
             ):

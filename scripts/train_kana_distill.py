@@ -127,6 +127,7 @@ def load_samples(
     runs: dict[str, str] | None = None,
     windows: dict[str, tuple[float, float]] | None = None,
     include: set[str] | None = None,
+    window_roles: tuple[str, ...] = ("target",),
 ) -> list[Sample]:
     samples: list[Sample] = []
     for teacher_dir in teacher_dirs:
@@ -152,7 +153,7 @@ def load_samples(
                     if row.get("role") == "target"
                     else None,
                     window=(windows or {}).get(row["key"])
-                    if row.get("role") == "target"
+                    if row.get("role") in window_roles
                     else None,
                 )
             )
@@ -585,6 +586,12 @@ def main() -> int:
     )
     parser.add_argument("--window-margin", type=float, default=0.1)
     parser.add_argument(
+        "--window-contrast",
+        action="store_true",
+        help="Also weight the tagged kanji's window in contrast rows (whose base "
+        "output is kept), not only in kana-teacher rows.",
+    )
+    parser.add_argument(
         "--grad-checkpoint",
         action="store_true",
         help="Recompute the student's BERT activations in backward (less memory).",
@@ -648,10 +655,13 @@ def main() -> int:
     runs = target_runs(args.rows)
     windows = target_windows(args.rows)
     include = read_keys(args.include_keys) if args.include_keys else None
-    train = load_samples(args.teacher_dir, "train", exclude, runs, windows, include)
+    window_roles = ("target", "contrast") if args.window_contrast else ("target",)
+    train = load_samples(
+        args.teacher_dir, "train", exclude, runs, windows, include, window_roles
+    )
     if args.oversample_dir:
         train += load_samples(
-            args.oversample_dir, "train", exclude, runs, windows, include
+            args.oversample_dir, "train", exclude, runs, windows, include, window_roles
         )
     # Oversample the rows that carry the kana teacher.
     train += [s for s in train if s.role == "target"] * (args.target_repeat - 1)

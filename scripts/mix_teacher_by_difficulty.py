@@ -39,7 +39,12 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base", type=Path, required=True)
-    parser.add_argument("--teacher", type=Path, required=True)
+    parser.add_argument(
+        "--teacher",
+        type=Path,
+        default=None,
+        help="Kana teacher directory; omit for data without target rows (contrast only).",
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
@@ -47,14 +52,18 @@ def main() -> int:
         r["key"]: bool(r["target_exact"])
         for r in read_jsonl(args.base / "results" / "details" / "all.jsonl")
     }
-    teacher_results = args.teacher / "results" / "details" / "all.jsonl"
-    teacher_correct = (
-        {r["key"]: bool(r["target_exact"]) for r in read_jsonl(teacher_results)}
-        if teacher_results.exists()
-        else {}
-    )
+    teacher_correct: dict[str, bool] = {}
+    teacher_rows: dict[str, dict[str, Any]] = {}
+    if args.teacher is not None:
+        teacher_results = args.teacher / "results" / "details" / "all.jsonl"
+        if teacher_results.exists():
+            teacher_correct = {
+                r["key"]: bool(r["target_exact"]) for r in read_jsonl(teacher_results)
+            }
+        teacher_rows = {
+            r["key"]: r for r in read_jsonl(args.teacher / "manifest.jsonl")
+        }
     base_rows = {r["key"]: r for r in read_jsonl(args.base / "manifest.jsonl")}
-    teacher_rows = {r["key"]: r for r in read_jsonl(args.teacher / "manifest.jsonl")}
     counts: Counter[str] = Counter()
     args.output.mkdir(parents=True, exist_ok=True)
     with (args.output / "manifest.jsonl").open("w", encoding="utf-8") as handle:
