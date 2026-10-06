@@ -20,19 +20,20 @@ differ from the base model card (FP32, no reference, seeds 0–4), so the number
 are not directly comparable to it. Changes are paired per item against the base model
 (fixed / broken counts, exact McNemar test).
 
-| Evaluation | Items | Base | v1 (S10) | **v2 (S12)** | v2 fixed / broken | v2 p |
-|---|---:|---:|---:|---:|---:|---:|
-| Aozora Bunko ruby, held-out works (target reading accuracy) | 3,000 | 62.50% | 63.30% | **65.80%** | 150 / 51 | 2e-12 |
-| Wikipedia sentences, held-out words (target reading accuracy) | 6,403 | 84.04% | 84.37% | **85.12%** | 134 / 65 | 1e-6 |
-| JSUT BASIC5000, not used in training (sentence kana CER, lower is better) | 2,236 | 1.881% | 1.799% | **1.778%** | 152 / 115 sentences | – |
-| JVS general sentences, not used in training (Whisper CER, lower is better) | 500 | **5.625%** | 5.650% | 5.683% | 13 / 18 sentences | – |
-| JKYB-Parakeet, accuracy (external; see the caveat below) | 13,536 | 94.04% | 95.06% | **95.46%** | 277 / 84 | 3e-25 |
-| JKYB-Parakeet, on'yomi / kun'yomi / appendix readings | | 92.98 / 95.87 / 83.87% | 94.47 / 96.27 / 86.29% | 94.97 / 96.45 / 88.71% | | |
+| Evaluation | Items | Base | v1 (S10) | v2 (S12) | **v3 (S12+S15 average)** | v3 fixed / broken | v3 p |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Aozora Bunko ruby, held-out works (target reading accuracy) | 3,000 | 62.50% | 63.30% | 65.80% | **67.53%** | 200 / 49 | 8e-23 |
+| Wikipedia sentences, held-out words (target reading accuracy) | 6,403 | 84.04% | 84.37% | **85.12%** | 84.98% | 126 / 66 | 2e-5 |
+| Pilot dev, held-out hard words (target reading accuracy) | 898 | 80.73% | – | **82.74%** | 81.96% | 31 / 20 | 0.16 |
+| JSUT BASIC5000, not used in training (sentence kana CER, lower is better) | 2,236 | 1.881% | 1.799% | 1.778% | **1.713%** | 161 / 99 sentences | – |
+| JVS general sentences, not used in training (Whisper CER, lower is better) | 500 | **5.625%** | 5.650% | 5.683% | 5.717% | 13 / 18 sentences | – |
+| JKYB-Parakeet, accuracy (external; see the caveat below) | 13,536 | 94.04% | 95.06% | 95.46% | **95.69%** | 320 / 96 | 3e-29 |
+| JKYB-Parakeet, on'yomi / kun'yomi / appendix readings | | 92.98 / 95.87 / 83.87% | 94.47 / 96.27 / 86.29% | 94.97 / 96.45 / 88.71% | 95.17 / 96.76 / 88.17% | | |
 
 The released checkpoints are students merged into the base checkpoint (see
-[Exporting](#exporting-a-checkpoint)); the numbers are for the exported files. Before the
-export, S12 itself scored 65.87%, 85.09% and 95.42% on the three reading sets; precision
-alone moves these numbers by a few tenths of a point. The JVS differences are mostly
+[Exporting](#exporting-a-checkpoint)); the numbers are for the exported files, and fixed /
+broken counts are against the base model. Precision alone moves these numbers by a few
+tenths of a point. The JVS differences are mostly
 orthographic variants in the Whisper transcripts (時 / とき, 全て / すべて).
 
 - Words that appear in the training data are fixed in new contexts. Words that never
@@ -45,8 +46,8 @@ orthographic variants in the Whisper transcripts (時 / とき, 全て / すべ�
   - They held out half of the benchmark's target words (group B) from training.
   - Their settings were chosen by JKYB results.
 
-  For v2, group A (words allowed in training) gained +1.65pt. Group B (words held out until S8;
-  the production data no longer excludes them) gained +1.20pt. Read the JKYB numbers as
+  For v3, group A (words allowed in training) gained +1.91pt. Group B (words held out until S8;
+  the production data no longer excludes them) gained +1.41pt. Read the JKYB numbers as
   partly in-domain. The production stages (S9, S10) use no JKYB data and were judged
   only by the other evaluations.
 
@@ -145,6 +146,10 @@ with cosine decay. Each run continues from the previous one, except where marked
 | S10 | same, new data 2× | 30k (90k) | 95.05% | released as v1; Aozora 63.40%, Wikipedia 84.55% |
 | S11 | same, target window weighted 5× | 30k (120k) | 95.32% | Aozora 65.00%, Wikipedia 84.91% |
 | **S12** | same | 30k (150k) | 95.42% | released as v2; Aozora 65.87%, Wikipedia 85.09% |
+| S13 | same | 60k (210k) | 95.38% | memorizes training sentences; held-out evals flat |
+| S14 | S12 + LLM variety (6 sentences per hard word) + 3,000 Aozora works | 60k (210k) | 95.69% | Aozora 69.00%; pilot dev −2.0pt |
+| S15 | S14 + contrast sentences for single-kanji targets | 30k (240k) | 95.60% | Aozora 69.10%; pilot dev still −2.6pt |
+| **v3** | average of S12 and S15 weights | – | – | released; Aozora 67.77%, pilot dev 82.07% |
 
 After S10, the hard training rows of Wikipedia and Aozora were read correctly only 30% and
 18% of the time, against 66% for M3. A diagnosis (`run_diag_fit.sh`) looked into this. It
@@ -159,8 +164,25 @@ data set:
 
 With the weighting, after S12, the hard rows are read correctly 56% (Wikipedia), 42%
 (Aozora) and 81% (M3) of the time. Words that never appear in training still do not
-improve (Aozora unseen words: 55.0% → 54.5%). Details:
-[`docs/reports/yomi_production.md`](docs/reports/yomi_production.md).
+improve (Aozora unseen words: 55.0% → 54.5%).
+
+The steps from S12 to v3:
+- **More steps alone memorize the training sentences.** In S13 (60k more steps on the same
+  data), the hard Aozora training rows rose from 42% to 57%. Items whose words were trained
+  but which appear in held-out sentences stayed at 18%.
+- **More varied sentences per word generalize** (S14). Each hard word got 6 LLM-written
+  sentences (`select_variation_targets.py`), and 2,000 more Aozora works were added. For
+  the words with new sentences, base-misread items in held-out sentences were fixed 34% of
+  the time, against 20% before.
+- **Contrast sentences protect common compounds** (S15). Single-kanji ruby readings (秋《とき》)
+  can leak into compounds. Held-out common compounds stayed at about 97%. The contrast
+  sentences come from `select_contrast_targets.py` and keep the base model's own output.
+- **Checkpoint averaging limits drift on untrained words** (v3). Long continued training
+  slowly changed untrained words (pilot dev 82.9% → 80.3%; 前庭 マエニワ → ゼンニワ).
+  Averaging the S12 and S15 weights (`interpolate_students.py`) gave pilot dev 82.1% and
+  kept about 60% of the Aozora gain (α = 0.7 gave 81.6% / 68.3%).
+
+Details: [`docs/reports/yomi_production.md`](docs/reports/yomi_production.md).
 
 ## Repository layout
 
@@ -178,14 +200,14 @@ Main scripts:
 | Step | Script |
 |---|---|
 | Lexicon | `build_yomi_lexicon.py` (`--reading-table jkyb` or `kanjidic2`) |
-| Targets | `select_yomi_targets.py`, `select_kun_targets.py`, `retrieve_corpus_sentences.py` + `select_corpus_targets.py`, `make_aozora_ruby_train.py` |
+| Targets | `select_yomi_targets.py`, `select_kun_targets.py`, `retrieve_corpus_sentences.py` + `select_corpus_targets.py`, `make_aozora_ruby_train.py`, `select_variation_targets.py`, `select_contrast_targets.py` |
 | Sentences | `generate_yomi_sentences.py` (LLM), `verify_homograph_sentences.py` |
 | Rows | `prepare_yomi_rows.py` (JKYB-format rows with Sudachi readings) |
 | Teacher | `generate_teacher_latents.py` (kanji/kana), `mix_teacher_by_difficulty.py` (hard mining) |
-| Training | `train_kana_distill.py`, `student_text.py` |
+| Training | `train_kana_distill.py`, `student_text.py`, `interpolate_students.py` |
 | Evaluation | `generate_jkyb_audio.py` (batched synthesis), `compare_jkyb_runs.py`, `analyze_jkyb_errors.py`, `eval_general_cer.py`, `make_aozora_ruby_eval.py` |
 | Export | `run_release.sh`, `generate_captions.py`, `refit_caption_projector.py`, `export_student_checkpoint.py`, `check_exported_checkpoint.py`, `caption_drift_listen.py`, `run_export_eval.sh` |
-| Pipelines | `run_yomi_data.sh <name>` (rows → hard mining → kana teacher → mix), `run_prod.sh`, `run_prod_s10.sh`, `run_prod_s11.sh`, `run_prod_cont.sh`, `run_diag_fit.sh`, `run_student_eval.sh` |
+| Pipelines | `run_yomi_data.sh <name>` (rows → hard mining → kana teacher → mix), `run_var_data.sh`, `run_prod.sh`, `run_prod_s10.sh`, `run_prod_s11.sh`, `run_prod_cont.sh`, `run_prod_s14.sh`, `run_prod_s15.sh`, `run_diag_fit.sh`, `run_student_eval.sh` |
 
 ## Setup
 
@@ -220,7 +242,10 @@ time.
 
 ```bash
 uv run python scripts/generate_captions.py --output data/yomi/captions.jsonl   # once; needs the LLM server
-bash scripts/run_release.sh outputs/yomi_prod/s12_cont/student release_s12 ../Irodori-TTS-v4.1-Small-Yomi
+PYTHONPATH=Irodori-TTS uv run --project Irodori-TTS --no-sync python scripts/interpolate_students.py \
+  outputs/yomi_prod/s12_cont/student outputs/yomi_prod/s15_cont/student --alpha 0.5 \
+  --output outputs/yomi_prod/mix_s12_s15_a50/student
+bash scripts/run_release.sh outputs/yomi_prod/mix_s12_s15_a50/student release_mix50 ../Irodori-TTS-v4.1-Small-Yomi
 ```
 
 `run_release.sh` runs the following steps:
