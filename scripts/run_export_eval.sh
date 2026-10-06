@@ -35,7 +35,7 @@ jkyb_eval() {  # jkyb_eval <run-dir> [extra args...]
   fi
 }
 
-for set in aozora prod_dev; do
+for set in aozora prod_dev dev; do
   gen "$E/$NAME/$set" --dataset "$E/${set}_rows.jsonl"
   jkyb_eval "$E/$NAME/$set" --dataset "../$E/${set}_rows.jsonl" --skip-text-cer
   uv run python scripts/compare_jkyb_runs.py "$E/base/$set/results" "$E/$NAME/$set/results" \
