@@ -229,3 +229,5 @@ outputs/**/student/
 outputs/**/train/student/
 outputs/**/student_step*/
 outputs/**/listen/*.wav
+outputs/release/stage_*/
+outputs/release/*/caption_refit/*.safetensors
