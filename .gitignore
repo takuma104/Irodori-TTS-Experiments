@@ -231,3 +231,7 @@ outputs/**/student_step*/
 outputs/**/listen/*.wav
 outputs/release/stage_*/
 outputs/release/*/caption_refit/*.safetensors
+docs/report/fonts/
+docs/report/preview_*
+docs/report/build_*.log
+docs/report/*.log

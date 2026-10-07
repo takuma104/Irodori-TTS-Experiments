@@ -9,7 +9,10 @@ The result is released as
 [takuma104/Irodori-TTS-v4.1-Small-Yomi](https://huggingface.co/takuma104/Irodori-TTS-v4.1-Small-Yomi),
 a drop-in replacement checkpoint for the stock Irodori-TTS inference code.
 
-Detailed reports and the experiment plan are written in Japanese under
+A technical report summarizes the method and results:
+[English (PDF)](docs/report/irodori_yomi_report_en.pdf) /
+[Japanese (PDF)](docs/report/irodori_yomi_report_ja.pdf) (sources in [`docs/report/`](docs/report/)).
+Detailed stage-by-stage reports and the experiment plan are written in Japanese under
 [`docs/`](docs/). This README summarizes them.
 
 ## Results
